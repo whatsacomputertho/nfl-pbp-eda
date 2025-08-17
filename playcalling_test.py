@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 # Load the NFL data and split into training and test data
 print("Loading NFL play-by-play data")
 df = load_clean_nfl_pbp_data()
-train, test = train_test_split(df)
+train, test = train_test_split(df, random_state=337)
 
 # Load the playcalling model
 print("Loading the playcalling model")
