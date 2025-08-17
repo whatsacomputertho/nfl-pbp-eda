@@ -8,7 +8,8 @@ class GameContext:
             half_seconds: int=1800,
             down: int=0,
             distance: int=10,
-            yard_line: int=25,
+            yard_line: int=35,
+            goal_to_go: bool=False,
             score_diff: int=0,
             off_timeouts: int=3,
             def_timeouts: int=3
@@ -81,6 +82,7 @@ class GameContext:
             down: int=0,
             distance: int=10,
             yard_line: int=25,
+            goal_to_go: bool=False,
             score_diff: int=0,
             off_timeouts: int=3,
             def_timeouts: int=3
@@ -94,6 +96,7 @@ class GameContext:
             down (int): The current down
             distance (int): The yards remaining until first down
             yard_line (int): The current yard line (0-100) where > 50 is opp
+            goal_to_go (bool): Whether a first down is unachievable
             score_diff (int): The score differential with respect to offense
             off_timeouts (int): number of timeouts remaining for the offense
             def_timeouts (int): Number of timeouts remaining for the defense
@@ -108,6 +111,7 @@ class GameContext:
             down,
             distance,
             yard_line,
+            goal_to_go,
             score_diff,
             off_timeouts,
             def_timeouts
@@ -121,6 +125,7 @@ class GameContext:
         self.down = down
         self.distance = distance
         self.yard_line = yard_line
+        self.goal_to_go = goal_to_go
         self.score_diff = score_diff
         self.off_timeouts = off_timeouts
         self.def_timeouts = def_timeouts
@@ -160,6 +165,8 @@ class GameContext:
         elif self.down == 3:
             down_suf = "rd"
         down_dist_str = f"{self.down}{down_suf} & {self.distance}"
+        if self.goal_to_go:
+            down_dist_str = f"{self.down}{down_suf} & goal"
 
         # Format the yard line
         yard = self.yard_line if self.yard_line < 50 \

@@ -46,19 +46,23 @@ class PlayCallingModel:
         Returns:
             PlayCall: The play call
         """
-        res = self.model.predict(
+        res = self.model.predict_proba(
             pd.DataFrame({
                 "qtr": [context.quarter],
                 "half_seconds_remaining": [context.half_seconds],
                 "down": [context.down],
                 "ydstogo": [context.distance],
                 "yardline_100": [context.yard_line],
+                "goal_to_go": [context.goal_to_go],
                 "score_diff": [context.score_diff],
                 "defteam_timeouts_remaining": [context.def_timeouts],
                 "posteam_timeouts_remaining": [context.off_timeouts]
             })
         )
-        return PlayCall.from_str(res[0])
+        classes = self.model.classes_
+        print(classes)
+        call = np.random.choice(classes, p=res[0])
+        return PlayCall.from_str(call)
 
     def train(
             self,
@@ -80,6 +84,7 @@ class PlayCallingModel:
                     "down",
                     "ydstogo",
                     "yardline_100",
+                    "goal_to_go",
                     "score_diff",
                     "defteam_timeouts_remaining",
                     "posteam_timeouts_remaining"
@@ -107,6 +112,7 @@ class PlayCallingModel:
                     "down",
                     "ydstogo",
                     "yardline_100",
+                    "goal_to_go",
                     "score_diff",
                     "defteam_timeouts_remaining",
                     "posteam_timeouts_remaining"

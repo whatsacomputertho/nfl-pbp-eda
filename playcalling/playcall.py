@@ -1,15 +1,19 @@
 from enum import Enum
 
 class PlayCall(Enum):
-    PASS = 0
-    RUN = 1
-    KICKOFF = 2
-    NO_PLAY = 3
-    PUNT = 4
-    EXTRA_POINT = 5
-    FIELD_GOAL = 6
-    QB_KNEEL = 7
-    QB_SPIKE = 8
+    SHORT_PASS = 0
+    DEEP_PASS = 1
+    RUN_LEFT = 2
+    RUN_MIDDLE = 3
+    RUN_RIGHT = 4
+    KICKOFF = 5
+    PUNT = 6
+    EXTRA_POINT = 7
+    FIELD_GOAL = 8
+    QB_KNEEL = 9
+    QB_SPIKE = 10
+    OFFENSE_TIMEOUT = 11
+    DEFENSE_TIMEOUT = 12
 
     def from_str(playcall: str) -> "PlayCall":
         """

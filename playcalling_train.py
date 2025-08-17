@@ -8,7 +8,7 @@ WORKDIR = os.path.dirname(os.path.abspath(__file__))
 # Load the NFL data and split into training and test data
 print("Loading NFL play-by-play data")
 df = load_clean_nfl_pbp_data()
-train, test = train_test_split(df)
+train, test = train_test_split(df, random_state=337)
 
 # Train the logistic regression model
 print("Training the playcalling model")
