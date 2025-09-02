@@ -15,7 +15,7 @@ NFL_PBP_YEARS = [
     2015
 ]
 
-def load_clean_nfl_pbp_data(
+def load_clean_nfl_pbp_playcall_data(
         years: list[int]=NFL_PBP_YEARS
     ) -> pd.DataFrame:
     """
@@ -29,7 +29,6 @@ def load_clean_nfl_pbp_data(
     """
     # Load NFL play-by-play data
     df = nfl.import_pbp_data(NFL_PBP_YEARS, cache=False, alt_path=None)
-    pd.set_option('display.max_columns', None)
 
     # Clean the NFL play-by-play data
     df = df[
@@ -102,4 +101,9 @@ def load_clean_nfl_pbp_data(
     )
 
     # Return the cleaned dataframe
+    return df
+
+def load_clean_nfl_pbp_playresult_data():
+    # Load NFL play-by-play data
+    df = nfl.import_pbp_data(NFL_PBP_YEARS, cache=False, alt_path=None)
     return df

@@ -73,7 +73,7 @@ class PlayCallingModel:
         plays based on the game scenario
 
         Args:
-            train (DataFrame): A training data set from load_clean_nfl_pbp_data
+            train (DataFrame): A training data set from load_clean_nfl_pbp_playcall_data
         """
         # Train the logistic regression model using the input dataframe
         self.model.fit(
@@ -102,7 +102,7 @@ class PlayCallingModel:
         plays based on the game scenario, and print the results
 
         Args:
-            test (DataFrame): A test date set from load_clean_nfl_pbp_data
+            test (DataFrame): A test date set from load_clean_nfl_pbp_playcall_data
         """
         pred = self.model.predict(
             test[
