@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from context.context import GameContext
+from context.context import PlayContext
 from keras.layers import Input, Dense
 from keras.models import Model, load_model, save_model
 from playcalling.playcall import PlayCall
@@ -47,7 +47,7 @@ class PlayResultModel:
             self,
             offense: OffensiveSkill,
             defense: DefensiveSkill,
-            context: GameContext,
+            context: PlayContext,
             playcall: PlayCall
         ) -> PlayResult:
         """
@@ -56,7 +56,7 @@ class PlayResultModel:
         Args:
             offense (OffensiveSkill): The offensive skill levels
             defense (DefensiveSkill): The defensive skill levels
-            context (GameContext): The game context
+            context (PlayContext): The game context
             playcall (PlayCall): The play call
         
         Returns:

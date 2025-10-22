@@ -6,7 +6,8 @@ class DefensiveSkill:
             pass_defense: float=0.5,
             coverage: float=0.5,
             turnovers: float=0.5,
-            penalties: float=0.5
+            penalties: float=0.5,
+            field_goal_defense: float=0.5
         ) -> tuple[bool, str]:
         """
         Validates the DefensiveSkill properties
@@ -18,6 +19,7 @@ class DefensiveSkill:
             coverage (float): How good the defense is at coverage
             turnovers (float): How likely the defense is to force a turnover
             penalties (float): How unlikely the defense is to commit a penalty
+            field_goal_defense (float): How good the defense is at defending field goals
         
         Returns:
             bool: Whether the properties are valid
@@ -35,6 +37,8 @@ class DefensiveSkill:
             return False, f"Turnovers out of bounds (0 - 1): {turnovers}"
         if penalties > 1.0 or penalties < 0:
             return False, f"Penalties out of bounds (0 - 1): {penalties}"
+        if field_goal_defense > 1.0 or field_goal_defense < 0:
+            return False, f"Field goal defense out of bounds (0 - 1): {field_goal_defense}"
         return True, ""
     
     def __init__(
@@ -44,7 +48,8 @@ class DefensiveSkill:
             pass_defense: float=0.5,
             coverage: float=0.5,
             turnovers: float=0.5,
-            penalties: float=0.5
+            penalties: float=0.5,
+            field_goal_defense: float=0.5
         ) -> "DefensiveSkill":
         """
         Constructor for the DefensiveSkill class
@@ -56,6 +61,7 @@ class DefensiveSkill:
             coverage (float): How good the defense is at coverage
             turnovers (float): How likely the defense is to force a turnover
             penalties (float): How unlikely the defense is to commit a penalty
+            field_goal_defense (float): How good the defense is at defending field goals
         
         Returns:
             DefensiveSkill: The instantiated DefensiveSkill object
@@ -67,7 +73,8 @@ class DefensiveSkill:
             pass_defense=pass_defense,
             coverage=coverage,
             turnovers=turnovers,
-            penalties=penalties
+            penalties=penalties,
+            field_goal_defense=field_goal_defense
         )
         if not valid:
             raise ValueError(err)
@@ -79,3 +86,4 @@ class DefensiveSkill:
         self.coverage = coverage
         self.turnovers = turnovers
         self.penalties = penalties
+        self.field_goal_defense = field_goal_defense

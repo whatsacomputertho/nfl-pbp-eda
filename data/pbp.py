@@ -106,6 +106,74 @@ def load_clean_nfl_pbp_playcall_data(
     # Return the cleaned dataframe
     return df
 
+def load_clean_nfl_pbp_fieldgoal_data(
+        years: list[int]=NFL_PBP_YEARS,
+        clean_columns: bool=True
+    ):
+    """
+    Loads historical NFL play-by-play data and cleans it for training the
+    field goal result model
+
+    Args:
+        years (list[int]): The years of play-by-play data to load
+        clean_columns (bool): Whether to drop irrelevant columns
+    
+    Returns:
+        pd.DataFrame: The loaded & cleaned historicla NFL field goal data
+    """
+    # Load NFL play-by-play data
+    df = nfl.import_pbp_data(NFL_PBP_YEARS, cache=False, alt_path=None)
+
+    # Derive the field goal kicking and field goal defense properties
+    field_goal_attempts = df.query("field_goal_attempt == 1")
+    season_posteam_groups = field_goal_attempts.groupby(["season", "posteam"])
+    season_defteam_groups = field_goal_attempts.groupby(["season", "defteam"])
+
+    # Loop through each group, get field goal proportion for and against, label
+    for groups, group in season_posteam_groups:
+        fg_percent = group["field_goal_result"].value_counts(normalize=True)["made"]
+        field_goal_attempts.loc[
+            (field_goal_attempts['season'] == groups[0]) & (field_goal_attempts['posteam'] == groups[1]),
+            "field_goal_percent"
+        ] = fg_percent
+    for groups, group in season_defteam_groups:
+        fg_percent_against = group["field_goal_result"].value_counts(normalize=True)["made"]
+        field_goal_attempts.loc[
+            (field_goal_attempts['season'] == groups[0]) & (field_goal_attempts['defteam'] == groups[1]),
+            "field_goal_percent_against"
+        ] = fg_percent_against
+    
+    # Normalize the field goal percent for and field goal percent against column
+    min_fg_percent = field_goal_attempts["field_goal_percent"].min()
+    max_fg_percent = field_goal_attempts["field_goal_percent"].max()
+    field_goal_attempts["norm_field_goal_percent"] = (field_goal_attempts["field_goal_percent"] - min_fg_percent) \
+        / (max_fg_percent - min_fg_percent)
+    min_fg_percent_against = field_goal_attempts["field_goal_percent_against"].min()
+    max_fg_percent_against = field_goal_attempts["field_goal_percent_against"].max()
+    field_goal_attempts["norm_field_goal_percent_against"] = (field_goal_attempts["field_goal_percent_against"] - min_fg_percent_against) \
+        / (max_fg_percent_against - min_fg_percent_against)
+
+    # Calculate and normalize the field goal skill diff
+    field_goal_attempts["diff_field_goal_percent"] = field_goal_attempts["norm_field_goal_percent"] \
+        - field_goal_attempts["norm_field_goal_percent_against"]
+    min_diff_fg_percent = field_goal_attempts["diff_field_goal_percent"].min()
+    max_diff_fg_percent = field_goal_attempts["diff_field_goal_percent"].max()
+    field_goal_attempts["norm_diff_field_goal_percent"] = (field_goal_attempts["diff_field_goal_percent"] - min_diff_fg_percent) \
+        / (max_diff_fg_percent - min_diff_fg_percent)
+
+    # Drop irrelevant columns if requested
+    if clean_columns:
+        field_goal_attempts = field_goal_attempts[
+            [
+                "yardline_100",
+                "norm_diff_field_goal_percent",
+                "field_goal_attempt",
+                "desc",
+                "field_goal_result"
+            ]
+        ]
+    return field_goal_attempts
+
 def load_clean_nfl_pbp_playresult_data(
         years: list[int]=NFL_PBP_YEARS
     ):

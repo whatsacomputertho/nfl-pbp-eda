@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 import pandas as pd
-from context.context import GameContext
+from context.context import PlayContext
 from playcalling.playcall import PlayCall
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
@@ -36,12 +36,12 @@ class PlayCallingModel:
                 max_iter=5000
             )
     
-    def play(self, context: GameContext) -> PlayCall:
+    def play(self, context: PlayContext) -> PlayCall:
         """
         Call a play using the model
 
         Args:
-            context (GameContext): The play calling scenario
+            context (PlayContext): The play calling scenario
         
         Returns:
             PlayCall: The play call
@@ -60,7 +60,6 @@ class PlayCallingModel:
             })
         )
         classes = self.model.classes_
-        print(classes)
         call = np.random.choice(classes, p=res[0])
         return PlayCall.from_str(call)
 

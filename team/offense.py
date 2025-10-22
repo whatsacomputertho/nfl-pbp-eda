@@ -7,7 +7,8 @@ class OffensiveSkill:
             receiving: float=0.5,
             scrambling: float=0.5,
             turnovers: float=0.5,
-            penalties: float=0.5
+            penalties: float=0.5,
+            field_goals: float=0.5
         ) -> tuple[bool, str]:
         """
         Validates the OffensiveSkill properties
@@ -20,6 +21,7 @@ class OffensiveSkill:
             scrambling (float): How likely the quarterback is to scramble
             turnovers (float): How unlikely the offense is to commit a turnover
             penalties (float): How unlikely the offense is to commit a penalty
+            field_goals (float): How good the offense is at kicking field goals
         
         Returns:
             bool: Whether the properties are valid
@@ -39,6 +41,8 @@ class OffensiveSkill:
             return False, f"Turnovers out of bounds (0 - 1): {turnovers}"
         if penalties > 1.0 or penalties < 0:
             return False, f"Penalties out of bounds (0 - 1): {penalties}"
+        if field_goals > 1.0 or field_goals < 0:
+            return False, f"Field goals out of bounds (0 - 1): {field_goals}"
         return True, ""
     
     def __init__(
@@ -49,7 +53,8 @@ class OffensiveSkill:
             receiving: float=0.5,
             scrambling: float=0.5,
             turnovers: float=0.5,
-            penalties: float=0.5
+            penalties: float=0.5,
+            field_goals: float=0.5
         ) -> "OffensiveSkill":
         """
         Constructor for the OffensiveSkill class
@@ -62,6 +67,7 @@ class OffensiveSkill:
             scrambling (float): How likely the quarterback is to scramble
             turnovers (float): How unlikely the offense is to commit a turnover
             penalties (float): How unlikely the offense is to commit a penalty
+            field_goals (float): How good the offense is at kicking field goals
         
         Returns:
             OffensiveSkill: The instantiated OffensiveSkill object
@@ -74,7 +80,8 @@ class OffensiveSkill:
             receiving=receiving,
             scrambling=scrambling,
             turnovers=turnovers,
-            penalties=penalties
+            penalties=penalties,
+            field_goals=field_goals
         )
         if not valid:
             raise ValueError(err)
@@ -87,3 +94,4 @@ class OffensiveSkill:
         self.scrambling = scrambling
         self.turnovers = turnovers
         self.penalties = penalties
+        self.field_goals = field_goals

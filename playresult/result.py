@@ -1,4 +1,6 @@
+import copy
 import json
+from context.context import GameContext, PlayContext
 from typing import Any
 
 class PlayResult:
@@ -147,6 +149,26 @@ class PlayResult:
             timeout=bool(rounded[18]),
             posteam_timeout=bool(rounded[19])
         )
+
+    def next_context(self, context: GameContext) -> GameContext:
+        """
+        Derive the next game context based on the current context and the play
+        result
+
+        Args:
+            context (GameContext): The current game context
+        
+        Returns:
+            PlayContext: The next game context
+        """
+        new_context = copy.deepcopy(context)
+
+        # TODO: Check if a change of possession occurred
+
+        # If not, then update the clock and yard line
+        new_context.update_clock(self.play_duration)
+        new_context.update_yard_line(self.yards_gained)
+        return new_context
 
     def __json__(self) -> dict[str, Any]:
         """

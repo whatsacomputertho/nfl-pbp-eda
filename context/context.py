@@ -1,4 +1,6 @@
-class GameContext:
+import random
+
+class PlayContext:
     """
     A play calling scenario. Includes the quarter, clock, down & distance,
     yard line, point differential, and timeouts remaining for each team.
@@ -15,7 +17,7 @@ class GameContext:
             def_timeouts: int=3
         ) -> tuple[bool, str]:
         """
-        Validate game context parameters
+        Validate play context parameters
 
         Args:
             quarter (int): The current quarter
@@ -28,7 +30,7 @@ class GameContext:
             def_timeouts (int): Number of timeouts remaining for the defense
         
         Returns:
-            bool: Whether the game context is valid
+            bool: Whether the play context is valid
             str: Error message if invalid
         """
         # Ensure the quarter is between 1-4
@@ -86,9 +88,9 @@ class GameContext:
             score_diff: int=0,
             off_timeouts: int=3,
             def_timeouts: int=3
-        ) -> "GameContext":
+        ) -> "PlayContext":
         """
-        Constructor for the GameContext class
+        Constructor for the PlayContext class
 
         Args:
             quarter (int): The current quarter
@@ -102,10 +104,10 @@ class GameContext:
             def_timeouts (int): Number of timeouts remaining for the defense
         
         Returns:
-            GameContext: The initialized GameContext
+            PlayContext: The initialized PlayContext
         """
-        # Validate the game context params
-        valid, err = GameContext.validate_static(
+        # Validate the play context params
+        valid, err = PlayContext.validate_static(
             quarter,
             half_seconds,
             down,
@@ -117,9 +119,9 @@ class GameContext:
             def_timeouts
         )
         if not valid:
-            raise ValueError(f"Invalid game context: {err}")
+            raise ValueError(f"Invalid play context: {err}")
 
-        # If valid, save the game context params
+        # If valid, save the play context params
         self.quarter = quarter
         self.half_seconds = half_seconds
         self.down = down
@@ -132,10 +134,10 @@ class GameContext:
 
     def __str__(self) -> str:
         """
-        Format a GameContext as a human-readable string
+        Format a PlayContext as a human-readable string
 
         Returns:
-            str: The GameContext as a human-readable string
+            str: The PlayContext as a human-readable string
         """
         # Format the clock
         clock = self.half_seconds if self.half_seconds <= 900 \
@@ -181,10 +183,248 @@ class GameContext:
         elif self.score_diff < 0:
             score_str = f"down by {abs(self.score_diff)}"
         
-        # Format and return the game context string
+        # Format and return the play context string
         return f"""{quarter_str} {clock_str}
 {down_dist_str} {yard_str}
 {score_str}
 offense has {self.off_timeouts} timeouts
 defense has {self.def_timeouts} timeouts
 """
+
+class GameContext:
+    """
+    The overarching game context. Includes individual team scores, possession
+    information, etcetera.
+    """
+    def __init__(
+            self,
+            home_team: str,
+            away_team: str,
+            quarter: int=1,
+            half_seconds: int=1800,
+            down: int=0,
+            distance: int=10,
+            yard_line: int=25,
+            home_score: int=0,
+            away_score: int=0,
+            home_positive_direction: bool=True,
+            home_opening_kickoff: bool=True,
+            home_possession: bool=True,
+            home_timeouts: int=3,
+            away_timeouts: int=3,
+            game_over: bool=False
+        ) -> "GameContext":
+        """
+        Constructor for the GameContext class
+
+        Args:
+            home_team (str): The home team acronym
+            away_team (str): The away team acronym
+            quarter (int): The current quarter
+            half_seconds (int): The seconds remaining in the half
+            down (int): The current down
+            distance (int): The yards remaining until first down
+            yard_line (int): The current yard line
+            home_score (int): The home team score
+            away_score (int): The away team score
+            home_positive_direction (bool): Whether the home team drives 0-100
+            home_opening_kickoff (bool): Whether the home team received the opening kick
+            home_possession (bool): Whether the home team has possession
+            home_timeouts (int): number of timeouts remaining for the home team
+            away_timeouts (int): Number of timeouts remaining for the away team
+            game_over (bool): Whether the game is complete
+        
+        Returns:
+            GameContext: The game context
+        """
+        self.home_team = home_team
+        self.away_team = away_team
+        self.quarter = quarter
+        self.half_seconds = half_seconds
+        self.down = down
+        self.distance = distance
+        self.yard_line = yard_line
+        self.home_score = home_score
+        self.away_score = away_score
+        self.home_positive_direction = home_positive_direction
+        self.home_opening_kickoff = home_opening_kickoff
+        self.home_possession = home_possession
+        self.home_timeouts = home_timeouts
+        self.away_timeouts = away_timeouts
+        self.game_over = game_over
+
+    def into_play_context(self) -> PlayContext:
+        """
+        Converts a GameContext into a PlayContext
+
+        Returns:
+            PlayContext: The play context derived from teh game context
+        """
+        # Derive the yard line property
+        if self.home_positive_direction:
+            if self.home_possession:
+                yard_line = self.yard_line
+            else:
+                yard_line = 100 - self.yard_line
+        else:
+            if self.home_possession:
+                yard_line = 100 - self.yard_line
+            else:
+                yard_line = self.yard_line
+        
+        # Derive the goal to go property
+        goal_to_go = False
+        if (yard_line + self.distance) >= 100:
+            goal_to_go = True
+        
+        # Derive the score diff property
+        score_diff = self.home_score - self.away_score
+        if not self.home_possession:
+            score_diff = self.away_score - self.home_score
+        
+        # Derive the offense and defense timeouts property
+        if self.home_possession:
+            off_timeouts = self.home_timeouts
+            def_timeouts = self.away_timeouts
+        else:
+            off_timeouts = self.away_timeouts
+            def_timeouts = self.home_timeouts
+        
+        return PlayContext(
+            quarter=self.quarter,
+            half_seconds=self.half_seconds,
+            down=self.down,
+            distance=self.distance,
+            yard_line=yard_line,
+            goal_to_go=goal_to_go,
+            score_diff=score_diff,
+            off_timeouts=off_timeouts,
+            def_timeouts=def_timeouts
+        )
+
+    def update_clock(self, play_duration: int):
+        """
+        Updates the clock given the duration of the play. Also updates the
+        quarter if applicable.
+
+        Args:
+            play_duration (int): How long the play took in seconds
+        """
+        half_seconds = self.half_seconds - play_duration
+        quarter = self.quarter
+
+        # End of first or third quarter
+        if self.half_seconds > 900 and half_seconds < 900:
+            quarter += 1
+            half_seconds = 900
+        
+        # End of half
+        if half_seconds < 0:
+            half_seconds = 0
+            if quarter >= 4:
+                if self.home_score != self.away_score:
+                    # Game is over
+                    self.game_over = True
+                else:
+                    # Overtime
+                    half_seconds = 900
+                    quarter = 5
+                    
+                    # Randomize possession
+                    self.home_possession = random.randint(0, 1) == 1
+        
+        # Regular play
+        self.half_seconds = half_seconds
+        self.quarter = quarter
+
+    def update_yard_line(
+            self,
+            yards_gained: int
+        ):
+        """
+        Updates the yard line given the number of yards gained on the play
+        as well as the down and distance
+
+        Args:
+            yards_gained (int): The number of yards gained on the play
+        """
+        # Update the yard line, check for a first down, touchdown, or safety
+        yard_line = self.yard_line
+        distance = self.distance
+        if self.home_positive_direction:
+            distance -= yards_gained
+            if self.home_possession:
+                yard_line += yards_gained
+                if yard_line >= (self.yard_line + self.distance):
+                    # First down
+                    self.down = 1
+                    self.distance = 10
+                    self.yard_line = yard_line
+                    return
+                if yard_line > 100:
+                    # Touchdown
+                    self.down = 0
+                    self.home_score += 6
+                elif yard_line < 0:
+                    # Safety
+                    self.down = 0
+                    self.away_score += 2
+            else:
+                yard_line -= yards_gained
+                if yard_line <= (self.yard_line - self.distance):
+                    # First down
+                    self.down = 1
+                    self.distance = 10
+                    self.yard_line = yard_line
+                    return
+                if yard_line < 0:
+                    # Touchdown
+                    self.down = 0
+                    self.away_score += 6
+                elif yard_line > 100:
+                    # Safety
+                    self.down = 0
+                    self.home_score += 2
+        else:
+            distance -= yards_gained
+            if self.home_possession:
+                yard_line -= yards_gained
+                if yard_line <= (self.yard_line - self.distance):
+                    # First down
+                    self.down = 1
+                    self.distance = 10
+                    self.yard_line = yard_line
+                    return
+                if yard_line < 0:
+                    # Touchdown
+                    self.down = 0
+                    self.home_score += 6
+                elif yard_line > 100:
+                    # Safety
+                    self.down = 0
+                    self.away_score += 2
+            else:
+                yard_line += yards_gained
+                if yard_line >= (self.yard_line + self.distance):
+                    # First down
+                    self.down = 1
+                    self.distance = 10
+                    self.yard_line = yard_line
+                    return
+                if yard_line > 100:
+                    # Touchdown
+                    self.down = 0
+                    self.away_score += 6
+                elif yard_line < 0:
+                    # Safety
+                    self.down = 0
+                    self.home_score += 2
+        
+        # Update the yard line, down and distance
+        self.yard_line = yard_line
+        self.distance = distance
+        self.down += 1
+        if self.down > 4:
+            # Turnover on downs
+            self.down = 1
+            self.home_possession = not self.home_possession
