@@ -174,6 +174,215 @@ def load_clean_nfl_pbp_fieldgoal_data(
         ]
     return field_goal_attempts
 
+def load_clean_nfl_pbp_run_data(
+        years: list[int]=NFL_PBP_YEARS,
+        clean_columns: bool=True
+    ):
+    """
+    Loads historical NFL play-by-play data and cleans it for training the
+    run result model
+
+    Args:
+        years (list[int]): The years of play-by-play data to load
+        clean_columns (bool): Whether to drop irrelevant columns
+    
+    Returns:
+        pd.DataFrame: The loaded & cleaned historicla NFL rushing data
+    """
+    # Load NFL play-by-play data
+    df = nfl.import_pbp_data(NFL_PBP_YEARS, cache=False, alt_path=None)
+
+    # Derive score differential column
+    df["score_diff"] = df["posteam_score"] - df["defteam_score"]
+
+    # Derive play duration and drop outliers
+    df['game_seconds_next'] = df.groupby('game_id')['game_seconds_remaining'].shift(-1)
+    df['play_duration'] = df['game_seconds_remaining'] - df['game_seconds_next']
+    df = df.query('play_duration < 69.0')
+    df = df.query('play_duration >= 0')
+
+    # Derive whether the penalty was committed by the posteam
+    df['posteam_penalty'] = 0.0
+    df.loc[(df["penalty"] == True) & (df["penalty_team"] == df["posteam"]), "posteam_penalty"] = 1.0
+
+    # Clean null penalty yards values
+    df['penalty_yards'] = df['penalty_yards'].fillna(0)
+    df = df.dropna(subset=['down'])
+
+    # Derive the rushing, rush defense, blocking, blitzing, turnover properties
+    rush_attempts = df.query("rush_attempt == 1")
+    season_posteam_groups = rush_attempts.groupby(["season", "posteam"])
+    season_defteam_groups = rush_attempts.groupby(["season", "defteam"])
+
+    # Loop through each group, get rushing, blocking, turnover properties
+    for groups, group in season_posteam_groups:
+        # Rushing
+        total_rush_attempts = len(group)
+        total_rushing_yards = group['rushing_yards'].sum()
+        rushing = total_rushing_yards / total_rush_attempts
+        rush_attempts.loc[
+            (rush_attempts['season'] == groups[0]) & (rush_attempts['posteam'] == groups[1]),
+            "rushing"
+        ] = rushing
+
+        # Run blocking
+        tackled_for_loss = len(
+            group.query('tackled_for_loss == 1')
+        )
+        blocking = 1 - (tackled_for_loss / total_rush_attempts)
+        rush_attempts.loc[
+            (rush_attempts['season'] == groups[0]) & (rush_attempts['posteam'] == groups[1]),
+            "run_blocking"
+        ] = blocking
+
+        # Ball handling
+        total_rushing_turnovers = len(
+            group.query('fumble == 1')
+        )
+        ball_handling = 1 - (total_rushing_turnovers / total_rush_attempts)
+        rush_attempts.loc[
+            (rush_attempts['season'] == groups[0]) & (rush_attempts['posteam'] == groups[1]),
+            "ball_handling"
+        ] = ball_handling
+
+        # Rushing penalties
+        total_rushing_penalties = len(
+            group.query(f'penalty == 1 and penalty_team == "{groups[1]}"')
+        )
+        rushing_penalties = 1 - (total_rushing_penalties / total_rush_attempts)
+        rush_attempts.loc[
+            (rush_attempts['season'] == groups[0]) & (rush_attempts['posteam'] == groups[1]),
+            "rushing_penalties"
+        ] = rushing_penalties
+    for groups, group in season_defteam_groups:
+        # Rush defense
+        total_rush_attempts_against = len(group)
+        total_rushing_yards_against = group['rushing_yards'].sum()
+        rush_defense = total_rushing_yards_against / total_rush_attempts_against
+        rush_attempts.loc[
+            (rush_attempts['season'] == groups[0]) & (rush_attempts['defteam'] == groups[1]),
+            "rush_defense"
+        ] = rush_defense
+
+        # Rush blitzing
+        rushing_tackle_for_loss = len(
+            group.query('tackled_for_loss == 1')
+        )
+        rush_blitzing = rushing_tackle_for_loss / total_rush_attempts_against
+        rush_attempts.loc[
+            (rush_attempts['season'] == groups[0]) & (rush_attempts['defteam'] == groups[1]),
+            "rush_blitzing"
+        ] = rush_blitzing
+
+        # Forced fumbles
+        total_forced_fumbles = len(
+            group.query('fumble == 1')
+        )
+        forced_fumbles = total_forced_fumbles / total_rush_attempts_against
+        rush_attempts.loc[
+            (rush_attempts['season'] == groups[0]) & (rush_attempts['defteam'] == groups[1]),
+            "forced_fumbles"
+        ] = forced_fumbles
+
+        # Rush defense penalties
+        total_defensive_penalties = len(
+            group.query(f'penalty == 1 and penalty_team == "{groups[1]}"')
+        )
+        rush_defense_penalties = 1 - (total_defensive_penalties / total_rush_attempts_against)
+        rush_attempts.loc[
+            (rush_attempts['season'] == groups[0]) & (rush_attempts['defteam'] == groups[1]),
+            "rush_defense_penalties"
+        ] = rush_defense_penalties
+    
+    # Normalize each offensive skill property
+    min_rushing = rush_attempts["rushing"].min()
+    max_rushing = rush_attempts["rushing"].max()
+    rush_attempts["norm_rushing"] = (rush_attempts["rushing"] - min_rushing) \
+        / (max_rushing - min_rushing)
+    min_blocking = rush_attempts["run_blocking"].min()
+    max_blocking = rush_attempts["run_blocking"].max()
+    rush_attempts["norm_run_blocking"] = (rush_attempts["run_blocking"] - min_blocking) \
+        / (max_blocking - min_blocking)
+    min_handling = rush_attempts["ball_handling"].min()
+    max_handling = rush_attempts["ball_handling"].max()
+    rush_attempts["norm_ball_handling"] = (rush_attempts["ball_handling"] - min_handling) \
+        / (max_handling - min_handling)
+    min_off_penalties = rush_attempts["rushing_penalties"].min()
+    max_off_penalties = rush_attempts["rushing_penalties"].max()
+    rush_attempts["norm_rushing_penalties"] = (rush_attempts["rushing_penalties"] - min_off_penalties) \
+        / (max_off_penalties - min_off_penalties)
+    
+    # Normalize each defensive skill property
+    min_rush_defense = rush_attempts["rush_defense"].min()
+    max_rush_defense = rush_attempts["rush_defense"].max()
+    rush_attempts["norm_rush_defense"] = 1 \
+        - ((rush_attempts["rush_defense"] - min_rush_defense) \
+        / (max_rush_defense - min_rush_defense))
+    min_blitzing = rush_attempts["rush_blitzing"].min()
+    max_blitzing = rush_attempts["rush_blitzing"].max()
+    rush_attempts["norm_rush_blitzing"] = (rush_attempts["rush_blitzing"] - min_blitzing) \
+        / (max_blitzing - min_blitzing)
+    min_ff = rush_attempts["forced_fumbles"].min()
+    max_ff = rush_attempts["forced_fumbles"].max()
+    rush_attempts["norm_forced_fumbles"] = (rush_attempts["forced_fumbles"] - min_ff) \
+        / (max_ff - min_ff)
+    min_def_penalties = rush_attempts["rush_defense_penalties"].min()
+    max_def_penalties = rush_attempts["rush_defense_penalties"].max()
+    rush_attempts["norm_rush_defense_penalties"] = (rush_attempts["rush_defense_penalties"] - min_def_penalties) \
+        / (max_def_penalties - min_def_penalties)
+
+    # Calculate the normalized skill diffs for relevant properties
+    rush_attempts["diff_rushing"] = rush_attempts["rushing"] - rush_attempts["rush_defense"]
+    min_diff_rushing = rush_attempts["diff_rushing"].min()
+    max_diff_rushing = rush_attempts["diff_rushing"].max()
+    rush_attempts["norm_diff_rushing"] = (rush_attempts["diff_rushing"] - min_diff_rushing) \
+        / (max_diff_rushing - min_diff_rushing)
+    rush_attempts["diff_blocking_blitzing"] = rush_attempts["run_blocking"] - rush_attempts["rush_blitzing"]
+    min_diff_blocking = rush_attempts["diff_blocking_blitzing"].min()
+    max_diff_blocking = rush_attempts["diff_blocking_blitzing"].max()
+    rush_attempts["norm_diff_blocking_blitzing"] = (rush_attempts["diff_blocking_blitzing"] - min_diff_blocking) \
+        / (max_diff_blocking - min_diff_blocking)
+    rush_attempts["diff_ball_handling"] = rush_attempts["norm_ball_handling"] - rush_attempts["norm_forced_fumbles"]
+    min_diff_handling = rush_attempts["diff_ball_handling"].min()
+    max_diff_handling = rush_attempts["diff_ball_handling"].max()
+    rush_attempts["norm_diff_ball_handling"] = (rush_attempts["diff_ball_handling"] - min_diff_handling) \
+        / (max_diff_handling - min_diff_handling)
+    
+    # Drop irrelevant columns if requested
+    if clean_columns:
+        rush_attempts = rush_attempts[
+            [
+                # Game context
+                "qtr",
+                "half_seconds_remaining",
+                "down",
+                "ydstogo",
+                "yardline_100",
+                "defteam_timeouts_remaining",
+                "posteam_timeouts_remaining",
+                "score_diff",
+                "goal_to_go",
+
+                # Team skill levels and skill diffs
+                "norm_diff_rushing",
+                "norm_diff_blocking_blitzing",
+                "norm_diff_ball_handling",
+                "norm_rushing_penalties",
+                "norm_rush_defense_penalties",
+
+                # Rush result
+                "play_duration",
+                "yards_gained",
+                "penalty",
+                "posteam_penalty",
+                "penalty_yards",
+                "fumble",
+                "return_yards",
+                "touchdown"
+            ]
+        ]
+    return rush_attempts
+
 def load_clean_nfl_pbp_playresult_data(
         years: list[int]=NFL_PBP_YEARS
     ):
