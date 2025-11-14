@@ -190,7 +190,7 @@ def load_clean_nfl_pbp_run_data(
         pd.DataFrame: The loaded & cleaned historicla NFL rushing data
     """
     # Load NFL play-by-play data
-    df = nfl.import_pbp_data(NFL_PBP_YEARS, cache=False, alt_path=None)
+    df = nfl.import_pbp_data(years, cache=False, alt_path=None)
 
     # Derive score differential column
     df["score_diff"] = df["posteam_score"] - df["defteam_score"]
@@ -382,6 +382,239 @@ def load_clean_nfl_pbp_run_data(
             ]
         ]
     return rush_attempts
+
+def load_clean_nfl_pbp_pass_data(
+        years: list[int]=NFL_PBP_YEARS,
+        clean_columns: bool=True
+    ):
+    df = nfl.import_pbp_data(years, cache=False, alt_path=None)
+    pass_attempts = df.query("pass_attempt == 1 or qb_scramble == 1")
+
+    # Label with raw skill levels
+    season_posteam_groups = pass_attempts.groupby(["season", "posteam"])
+    season_defteam_groups = pass_attempts.groupby(["season", "defteam"])
+    for groups, group in season_posteam_groups:
+        # Pass blocking
+        total_pass_attempts = len(group)
+        pressures = len(
+            group.query('qb_hit == 1 or sack == 1 or tackled_for_loss == 1')
+        )
+        blocking = 1 - (pressures / total_pass_attempts)
+        pass_attempts.loc[
+            (pass_attempts['season'] == groups[0]) & (pass_attempts['posteam'] == groups[1]),
+            "pass_blocking"
+        ] = blocking
+
+        # Scrambling
+        scrambles = len(
+            group.query('qb_scramble == 1')
+        )
+        scrambling = scrambles / total_pass_attempts
+        pass_attempts.loc[
+            (pass_attempts['season'] == groups[0]) & (pass_attempts['posteam'] == groups[1]),
+            "scrambling"
+        ] = scrambling
+
+        # Passing
+        completions = group.query("complete_pass == 1")
+        total_pass_completions = len(completions)
+        total_pass_yards = group['passing_yards'].sum()
+        total_pass_touchdowns = completions['pass_touchdown'].sum()
+        total_pass_interceptions = group['interception'].sum()
+        passing = ((
+            ( # a
+                ((total_pass_completions / total_pass_attempts) - 0.3) * 5
+            ) +
+            ( # b
+                ((total_pass_yards / total_pass_attempts) - 3) * 0.25
+            ) +
+            ( # c
+                (total_pass_touchdowns / total_pass_attempts) * 20
+            ) +
+            ( # d
+                2.375 - ((total_pass_interceptions / total_pass_attempts) * 25)
+            )
+        ) / 6) * 100
+        pass_attempts.loc[
+            (pass_attempts['season'] == groups[0]) & (pass_attempts['posteam'] == groups[1]),
+            "passing"
+        ] = passing
+
+        # Receiving
+        total_yac = group["yards_after_catch"].sum()
+        yac_per_completion = total_yac / total_pass_completions
+        pass_attempts.loc[
+            (pass_attempts['season'] == groups[0]) & (pass_attempts['posteam'] == groups[1]),
+            "receiving"
+        ] = yac_per_completion
+
+        # Interceptions
+        interceptions = len(group.query("interception == 1"))
+        pass_interceptions = 1 - (interceptions / total_pass_attempts)
+        pass_attempts.loc[
+            (pass_attempts['season'] == groups[0]) & (pass_attempts['posteam'] == groups[1]),
+            "pass_interceptions"
+        ] = pass_interceptions
+    for groups, group in season_defteam_groups:
+        # Pass rushing
+        total_pass_attempts_against = len(group)
+        pressures_against = len(
+            group.query('qb_hit == 1 or sack == 1 or tackled_for_loss == 1')
+        )
+        blitzing = pressures_against / total_pass_attempts_against
+        pass_attempts.loc[
+            (pass_attempts['season'] == groups[0]) & (pass_attempts['defteam'] == groups[1]),
+            "pass_rushing"
+        ] = blitzing
+
+        # Pass defense
+        completions = group.query("complete_pass == 1")
+        total_pass_completions = len(completions)
+        total_pass_yards = group['passing_yards'].sum()
+        total_pass_touchdowns = completions['pass_touchdown'].sum()
+        total_pass_interceptions = group['interception'].sum()
+        pass_defense = ((
+            ( # a
+                ((total_pass_completions / total_pass_attempts) - 0.3) * 5
+            ) +
+            ( # b
+                ((total_pass_yards / total_pass_attempts) - 3) * 0.25
+            ) +
+            ( # c
+                (total_pass_touchdowns / total_pass_attempts) * 20
+            ) +
+            ( # d
+                2.375 - ((total_pass_interceptions / total_pass_attempts) * 25)
+            )
+        ) / 6) * 100
+        pass_attempts.loc[
+            (pass_attempts['season'] == groups[0]) & (pass_attempts['defteam'] == groups[1]),
+            "pass_defense"
+        ] = pass_defense
+
+        # Receiving
+        total_yac_against = group["yards_after_catch"].sum()
+        yac_per_completion_against = total_yac_against / total_pass_completions
+        pass_attempts.loc[
+            (pass_attempts['season'] == groups[0]) & (pass_attempts['defteam'] == groups[1]),
+            "coverage"
+        ] = yac_per_completion_against
+
+        # Interceptions
+        interceptions = len(group.query("interception == 1"))
+        def_interceptions = interceptions / total_pass_attempts
+        pass_attempts.loc[
+            (pass_attempts['season'] == groups[0]) & (pass_attempts['defteam'] == groups[1]),
+            "def_interceptions"
+        ] = def_interceptions
+
+    # Label with normalized skill levels
+    min_passing = pass_attempts["passing"].min()
+    max_passing = pass_attempts["passing"].max()
+    pass_attempts["norm_passing"] = (pass_attempts["passing"] - min_passing) \
+        / (max_passing - min_passing)
+    min_receiving = pass_attempts["receiving"].min()
+    max_receiving = pass_attempts["receiving"].max()
+    pass_attempts["norm_receiving"] = (pass_attempts["receiving"] - min_receiving) \
+        / (max_receiving - min_receiving)
+    min_blocking = pass_attempts["pass_blocking"].min()
+    max_blocking = pass_attempts["pass_blocking"].max()
+    pass_attempts["norm_pass_blocking"] = (pass_attempts["pass_blocking"] - min_blocking) \
+        / (max_blocking - min_blocking)
+    min_scrambling = pass_attempts["scrambling"].min()
+    max_scrambling = pass_attempts["scrambling"].max()
+    pass_attempts["norm_scrambling"] = (pass_attempts["scrambling"] - min_scrambling) \
+        / (max_scrambling - min_scrambling)
+    min_pass_int = pass_attempts["pass_interceptions"].min()
+    max_pass_int = pass_attempts["pass_interceptions"].max()
+    pass_attempts["norm_pass_interceptions"] = (pass_attempts["pass_interceptions"] - min_pass_int) \
+        / (max_pass_int - min_pass_int)
+    min_pass_defense = pass_attempts["pass_defense"].min()
+    max_pass_defense = pass_attempts["pass_defense"].max()
+    pass_attempts["norm_pass_defense"] = 1 - (
+        (pass_attempts["pass_defense"] - min_pass_defense) \
+            / (max_pass_defense - min_pass_defense)
+    )
+    min_coverage = pass_attempts["coverage"].min()
+    max_coverage = pass_attempts["coverage"].max()
+    pass_attempts["norm_coverage"] = 1 - (
+        (pass_attempts["coverage"] - min_coverage) \
+            / (max_coverage - min_coverage)
+    )
+    min_blitzing = pass_attempts["pass_rushing"].min()
+    max_blitzing = pass_attempts["pass_rushing"].max()
+    pass_attempts["norm_pass_rushing"] = (pass_attempts["pass_rushing"] - min_blitzing) \
+        / (max_blitzing - min_blitzing)
+    min_def_int = pass_attempts["def_interceptions"].min()
+    max_def_int = pass_attempts["def_interceptions"].max()
+    pass_attempts["norm_def_interceptions"] = (pass_attempts["def_interceptions"] - min_def_int) \
+        / (max_def_int - min_def_int)
+
+    # Label with normalized skill differentials
+    pass_attempts["diff_passing"] = pass_attempts["norm_passing"] - pass_attempts["norm_pass_defense"]
+    min_diff_passing = pass_attempts["diff_passing"].min()
+    max_diff_passing = pass_attempts["diff_passing"].max()
+    pass_attempts["norm_diff_passing"] = (pass_attempts["diff_passing"] - min_diff_passing) \
+        / (max_diff_passing - min_diff_passing)
+    pass_attempts["diff_receiving"] = pass_attempts["norm_receiving"] - pass_attempts["norm_coverage"]
+    min_diff_receiving = pass_attempts["diff_receiving"].min()
+    max_diff_receiving = pass_attempts["diff_receiving"].max()
+    pass_attempts["norm_diff_receiving"] = (pass_attempts["diff_receiving"] - min_diff_receiving) \
+        / (max_diff_receiving - min_diff_receiving)
+    pass_attempts["diff_pass_blocking_rushing"] = pass_attempts["norm_pass_blocking"] - pass_attempts["norm_pass_rushing"]
+    min_diff_blocking = pass_attempts["diff_pass_blocking_rushing"].min()
+    max_diff_blocking = pass_attempts["diff_pass_blocking_rushing"].max()
+    pass_attempts["norm_diff_pass_blocking_rushing"] = (pass_attempts["diff_pass_blocking_rushing"] - min_diff_blocking) \
+        / (max_diff_blocking - min_diff_blocking)
+    pass_attempts["diff_interceptions"] = pass_attempts["norm_pass_interceptions"] - pass_attempts["norm_def_interceptions"]
+    min_diff_int = pass_attempts["diff_interceptions"].min()
+    max_diff_int = pass_attempts["diff_interceptions"].max()
+    pass_attempts["norm_diff_interceptions"] = (pass_attempts["diff_interceptions"] - min_diff_int) \
+        / (max_diff_int - min_diff_int)
+
+    # Return the dataframe
+    if clean_columns:
+        return pass_attempts[
+            [
+                # Play context
+                "yardline_100",
+                
+                # Skill levels
+                "norm_passing",
+                "norm_receiving",
+                "norm_pass_blocking",
+                "norm_scrambling",
+                "norm_pass_interceptions",
+                "norm_pass_defense",
+                "norm_coverage",
+                "norm_pass_rushing",
+                "norm_def_interceptions",
+
+                # Skill differentials
+                "norm_diff_passing",
+                "norm_diff_receiving",
+                "norm_diff_pass_blocking_rushing",
+                "norm_diff_interceptions",
+
+                # Pass result columns
+                "qb_hit",
+                "sack",
+                "tackled_for_loss",
+                "qb_scramble",
+                "pass_attempt",
+                "incomplete_pass",
+                "interception",
+                "fumble",
+                "air_yards",
+                "yards_after_catch",
+                "return_yards",
+                "pass_length",
+
+                # Debug
+                "desc"
+            ]
+        ]
+    return pass_attempts
 
 def load_clean_nfl_pbp_playresult_data(
         years: list[int]=NFL_PBP_YEARS

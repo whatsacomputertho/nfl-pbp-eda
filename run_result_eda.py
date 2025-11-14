@@ -187,6 +187,8 @@ plt.savefig('./figures/rushing_fumble.png')
 plt.clf()
 
 # Fumble recovery distribution will be an exponential distrubution with lambda = 1
+
+# Duration in seconds of rushing play
 exp_play_duration = df[df['play_duration'] < 12]
 play_duration_model = LinearRegression()
 pf = PolynomialFeatures(degree=2)

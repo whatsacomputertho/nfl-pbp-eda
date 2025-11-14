@@ -41,7 +41,13 @@ class RushResultModel:
         self.p_fumble_coef = -0.05432772
         self.p_fumble_intr = 0.04932479844415921
 
-    def sim(self, context: PlayContext, offense: OffensiveSkill, defense: DefensiveSkill) -> RushResult:
+    def sim(
+            self,
+            context: PlayContext,
+            offense: OffensiveSkill,
+            defense: DefensiveSkill,
+            scramble: bool=False
+        ) -> RushResult:
         """
         Simulates a rushing play
 
@@ -49,6 +55,7 @@ class RushResultModel:
             context (PlayContext): The play context
             offense (OffensiveSkill): The offense's skill levels
             defense (DevensiveSkill): The defense's skill levels
+            scramble (bool): Whether this is a QB scramble
         
         Returns:
             RushResult: The result of the run play
@@ -74,7 +81,8 @@ class RushResultModel:
                         )
                     ),
                     fumble=False,
-                    touchdown=True
+                    touchdown=True,
+                    scramble=scramble
                 )
             
             # Otherwise generate yards gained
@@ -95,7 +103,8 @@ class RushResultModel:
                     )
                 ),
                 fumble=False,
-                touchdown=yards > (100 - context.yard_line)
+                touchdown=yards > (100 - context.yard_line),
+                scramble=scramble
             )
         
         # Generate normal play yards
@@ -123,7 +132,8 @@ class RushResultModel:
                 ),
                 fumble=True,
                 return_yards=ret_yards,
-                touchdown=(context.yard_line + yards) < 0
+                touchdown=(context.yard_line + yards) < 0,
+                scramble=scramble
             )
         
         # Return rush result
@@ -138,7 +148,8 @@ class RushResultModel:
                 )
             ),
             fumble=False,
-            touchdown=yards > (100 - context.yard_line)
+            touchdown=yards > (100 - context.yard_line),
+            scramble=scramble
         )
 
     def is_fumble(self, norm_diff_ball_handling: float) -> bool:

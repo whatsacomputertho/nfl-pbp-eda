@@ -5,7 +5,8 @@ class RushResult:
             play_duration: int,
             fumble: bool=False,
             return_yards: int=0,
-            touchdown: bool=False
+            touchdown: bool=False,
+            scramble: bool=False
         ):
         """
         Constructor for the RushResult class
@@ -15,6 +16,7 @@ class RushResult:
         self.fumble = fumble
         self.return_yards = return_yards
         self.touchdown = touchdown
+        self.scramble = scramble
 
     def __str__(self) -> str:
         """
@@ -23,7 +25,10 @@ class RushResult:
         Returns:
             str: The result as a human-readable string
         """
-        res = f"({self.play_duration}s) Rush for {self.yards_gained} yards."
+        res = f"({self.play_duration}s)"
+        if self.scramble:
+            res += " QB under pressure, scrambles."
+        res = f" Rush for {self.yards_gained} yards."
         if self.fumble:
             res += " FUMBLE recovered by the defense."
             if self.return_yards != 0:
