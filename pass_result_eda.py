@@ -496,3 +496,49 @@ print()
 # Fumble recovery distribution will be an exponential distrubution with lambda = 1
 
 # TODO: Play duration
+
+# Incomplete pass duration
+incomplete_passes = df[df["incomplete_pass"] == 1]
+exp_incomplete_duration = incomplete_passes[incomplete_passes['play_duration'] < 8]
+incomplete_pass_duration_model = LinearRegression()
+incomplete_pass_duration_model.fit(
+    pd.DataFrame(exp_incomplete_duration['yards_gained']),
+    pd.DataFrame(exp_incomplete_duration['play_duration'])
+)
+print("Incomplete pass duration model")
+print(f"coef: {incomplete_pass_duration_model.coef_}")
+print(f"intr: {incomplete_pass_duration_model.intercept_}")
+print()
+
+zero_to_hundred = np.linspace(-20, 100)
+incomplete_dur_pred = incomplete_pass_duration_model.predict(pd.DataFrame(zero_to_hundred))
+plt.scatter(exp_incomplete_duration['air_yards'], exp_incomplete_duration['play_duration'], color='g')
+plt.scatter(zero_to_hundred, np.random.normal(loc=incomplete_dur_pred, scale=2), color='b')
+plt.title("Incomplete pass play duration by pass distance")
+plt.xlabel("Pass distance (yards)")
+plt.ylabel("Play duration (seconds)")
+plt.savefig('./figures/incomplete_pass_duration.png')
+plt.clf()
+
+# Complete pass duration
+complete_passes = df[df["incomplete_pass"] == 0]
+exp_complete_duration = complete_passes[complete_passes['play_duration'] < 14]
+complete_pass_duration_model = LinearRegression()
+complete_pass_duration_model.fit(
+    pd.DataFrame(exp_complete_duration['yards_gained']),
+    pd.DataFrame(exp_complete_duration['play_duration'])
+)
+print("Complete pass duration model")
+print(f"coef: {complete_pass_duration_model.coef_}")
+print(f"intr: {complete_pass_duration_model.intercept_}")
+print()
+
+zero_to_hundred = np.linspace(-20, 100)
+complete_dur_pred = incomplete_pass_duration_model.predict(pd.DataFrame(zero_to_hundred))
+plt.scatter(exp_complete_duration['yards_gained'], exp_complete_duration['play_duration'], color='g')
+plt.scatter(zero_to_hundred, np.random.normal(loc=complete_dur_pred, scale=2), color='b')
+plt.title("Complete pass play duration by yards gained")
+plt.xlabel("Yards gained")
+plt.ylabel("Play duration (seconds)")
+plt.savefig('./figures/complete_pass_duration.png')
+plt.clf()

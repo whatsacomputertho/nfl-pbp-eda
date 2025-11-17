@@ -388,6 +388,13 @@ def load_clean_nfl_pbp_pass_data(
         clean_columns: bool=True
     ):
     df = nfl.import_pbp_data(years, cache=False, alt_path=None)
+
+    # Derive play duration and drop outliers
+    df['game_seconds_next'] = df.groupby('game_id')['game_seconds_remaining'].shift(-1)
+    df['play_duration'] = df['game_seconds_remaining'] - df['game_seconds_next']
+    df = df.query('play_duration < 69.0')
+    df = df.query('play_duration >= 0')
+
     pass_attempts = df.query("pass_attempt == 1 or qb_scramble == 1")
 
     # Label with raw skill levels
@@ -609,12 +616,143 @@ def load_clean_nfl_pbp_pass_data(
                 "yards_after_catch",
                 "return_yards",
                 "pass_length",
+                "play_duration",
+                "yards_gained",
 
                 # Debug
                 "desc"
             ]
         ]
     return pass_attempts
+
+def load_clean_nfl_pbp_punt_data(
+        years: list[int]=NFL_PBP_YEARS
+    ):
+    """
+    Loads historical NFL play-by-play data and cleans it for training the
+    punt result model
+    """
+    # Load NFL play-by-play data
+    df = nfl.import_pbp_data(NFL_PBP_YEARS, cache=False, alt_path=None)
+
+    # Derive play duration and drop outliers
+    df['game_seconds_next'] = df.groupby('game_id')['game_seconds_remaining'].shift(-1)
+    df['play_duration'] = df['game_seconds_remaining'] - df['game_seconds_next']
+    df = df.query('play_duration < 69.0')
+    df = df.query('play_duration >= 0')
+
+    punt_plays = df.query("punt_attempt == 1")
+
+    # Punting and punt return skill levels
+    # Punting skill => percentage of punts inside twenty
+    # Return defense skill => Return yards per punt return against
+    # Returning skill => Return yards per punt return
+    season_posteam_groups = punt_plays.groupby(["season", "posteam"])
+    season_defteam_groups = punt_plays.groupby(["season", "defteam"])
+    for groups, group in season_posteam_groups:
+        # Derive punting skill
+        total_punt_attempts = len(group)
+        punts_inside_twenty = len(
+            group.query('punt_inside_twenty == 1')
+        )
+        punting = 1 - (punts_inside_twenty / total_punt_attempts)
+        punt_plays.loc[
+            (punt_plays['season'] == groups[0]) & (punt_plays['posteam'] == groups[1]),
+            "punting"
+        ] = punting
+
+        # Derive return defense skill
+        punt_returns = group.query(
+            'punt_downed == 0 and punt_fair_catch == 0 and touchback == 0 and punt_out_of_bounds == 0'
+        )
+        total_punt_returns = len(punt_returns)
+        total_return_yards = punt_returns['return_yards'].sum()
+        return_defense = total_return_yards / total_punt_returns
+        punt_plays.loc[
+            (punt_plays['season'] == groups[0]) & (punt_plays['posteam'] == groups[1]),
+            "return_defense"
+        ] = return_defense
+    for groups, group in season_defteam_groups:
+        # Derive blitzing skill
+        total_punts = len(group)
+        total_punt_blocks = len(group.query('punt_blocked == 1'))
+        blitzing = total_punt_blocks / total_punts
+        punt_plays.loc[
+            (punt_plays['season'] == groups[0]) & (punt_plays['posteam'] == groups[1]),
+            "blitzing"
+        ] = blitzing
+
+        # Derive returning skill
+        punt_returns = group.query(
+            'punt_downed == 0 and punt_fair_catch == 0 and touchback == 0 and punt_out_of_bounds == 0'
+        )
+        total_punt_returns = len(punt_returns)
+        total_return_yards = punt_returns['return_yards'].sum()
+        returning = total_return_yards / total_punt_returns
+        punt_plays.loc[
+            (punt_plays['season'] == groups[0]) & (punt_plays['defteam'] == groups[1]),
+            "returning"
+        ] = returning
+
+    # Normalize punting, returning, return defense
+    min_punting = punt_plays["punting"].min()
+    max_punting = punt_plays["punting"].max()
+    punt_plays["norm_punting"] = 1 - (
+        (punt_plays["punting"] - min_punting) \
+        / (max_punting - min_punting)
+    )
+    min_blitzing = punt_plays["blitzing"].min()
+    max_blitzing = punt_plays["blitzing"].max()
+    punt_plays["norm_blitzing"] = 1 - (
+        (punt_plays["blitzing"] - min_blitzing) \
+        / (max_blitzing - min_blitzing)
+    )
+    min_returning = punt_plays["returning"].min()
+    max_returning = punt_plays["returning"].max()
+    punt_plays["norm_returning"] = (punt_plays["returning"] - min_returning) \
+        / (max_returning - min_returning)
+    min_return_defense = punt_plays["return_defense"].min()
+    max_return_defense = punt_plays["return_defense"].max()
+    punt_plays["norm_return_defense"] = 1 - (
+        (punt_plays["return_defense"] - min_return_defense) \
+        / (max_return_defense - min_return_defense)
+    )
+
+    # Derive norm diff returning
+    punt_plays["diff_returning"] = punt_plays["norm_returning"] - punt_plays["norm_return_defense"]
+    min_diff_returning = punt_plays["diff_returning"].min()
+    max_diff_returning = punt_plays["diff_returning"].max()
+    punt_plays["norm_diff_returning"] = (punt_plays["diff_returning"] - min_diff_returning) \
+        / (max_diff_returning - min_diff_returning)
+
+    return punt_plays[
+        [
+            # Play context
+            "yardline_100",
+
+            # Skill levels
+            "norm_blitzing",
+            "norm_punting",
+            "norm_diff_returning",
+
+            # Punt result columns
+            "kick_distance",
+            "return_yards",
+            "out_of_bounds",
+            "fumble",
+            "punt_out_of_bounds",
+            "punt_blocked",
+            "punt_in_endzone",
+            "touchback",
+            "punt_inside_twenty",
+            "punt_fair_catch",
+            "punt_downed",
+            "play_duration",
+
+            # Debug
+            "desc"
+        ]
+    ]
 
 def load_clean_nfl_pbp_playresult_data(
         years: list[int]=NFL_PBP_YEARS

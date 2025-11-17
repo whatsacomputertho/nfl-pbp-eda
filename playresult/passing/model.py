@@ -102,6 +102,11 @@ class PassResultModel:
         # Fumble probability
         self.p_fumble = 0.1
 
+        # Mean regression for play duration, std fixed at 2
+        self.mean_play_duration_intr = 5.32135821
+        self.mean_play_duration_coef_1 = 0.11343699
+        self.mean_play_duration_coef_2 = -0.00056798
+
     def sim(
             self,
             context: PlayContext,
@@ -133,7 +138,8 @@ class PassResultModel:
                 return PassResult(
                     pressure=pressure,
                     sack=True,
-                    sack_yards_lost=3
+                    sack_yards_lost=3,
+                    play_duration=self.play_duration(3)
                 )
             
             # 3. If not sacked, does QB scramble?
@@ -161,7 +167,8 @@ class PassResultModel:
                 pressure=pressure,
                 pass_dist=pass_dist,
                 interception=True,
-                return_yards=return_yards
+                return_yards=return_yards,
+                play_duration=self.play_duration(pass_dist+return_yards)
             )
         
         # 8. Complete?
@@ -183,20 +190,23 @@ class PassResultModel:
                     complete=complete,
                     fumble=True,
                     return_yards=return_yards,
-                    yac=yac
+                    yac=yac,
+                    play_duration=self.play_duration(pass_dist+yac+return_yards)
                 )
             return PassResult(
                 pressure=pressure,
                 pass_dist=pass_dist,
                 complete=complete,
-                yac=yac
+                yac=yac,
+                play_duration=self.play_duration(pass_dist+yac)
             )
         
         # Incomplete pass
         return PassResult(
             pressure=pressure,
             pass_dist=pass_dist,
-            complete=complete
+            complete=complete,
+            play_duration=self.play_duration(pass_dist)
         )
 
     # 1. Is QB pressured?
@@ -490,3 +500,18 @@ class PassResultModel:
             int: The fumble recovery return yards
         """
         return int(np.random.exponential(scale=1))
+
+    def play_duration(self, yards: int) -> float:
+        """
+        Generates the duration of the play in seconds.
+        
+        Args:
+            yards (int): The yards gained, air yards, pr air + return yards
+        
+        Returns:
+            float: The mean duration of the play in seconds
+        """
+        mean_play_duration = self.mean_play_duration_intr + \
+            (self.mean_play_duration_coef_1 * yards) + \
+            (self.mean_play_duration_coef_2 * pow(yards, 2))
+        return abs(int(np.random.normal(loc=mean_play_duration, scale=2)))

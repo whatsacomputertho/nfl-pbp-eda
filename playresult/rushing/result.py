@@ -1,3 +1,6 @@
+import copy
+from context.context import GameContext
+
 class RushResult:
     def __init__(
             self,
@@ -17,6 +20,19 @@ class RushResult:
         self.return_yards = return_yards
         self.touchdown = touchdown
         self.scramble = scramble
+
+    def next_context(self, context: GameContext) -> GameContext:
+        """
+        Converts the current game context into the next game context given
+        this play result
+        """
+        new_context = copy.deepcopy(context)
+        new_context.update_clock(self.play_duration)
+        new_context.update_yard_line(self.yards_gained)
+        if self.fumble:
+            new_context.home_possession = not new_context.home_possession
+            new_context.yard_line = 100 - new_context.yard_line
+        return new_context
 
     def __str__(self) -> str:
         """
