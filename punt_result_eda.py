@@ -3,9 +3,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
 from scipy.stats import skewnorm
-from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
-from mpl_toolkits.mplot3d import Axes3D
 
 df = pd.read_csv('./data/punts.csv')
 
@@ -16,10 +15,11 @@ df = pd.read_csv('./data/punts.csv')
 # 3. Touchback, inside 20, outside 20?
 # 4. Punt distance given punt chunk
 # 5. Out of bounds?
-# 6. Fair catch? Muffed?
-# 7. Return yards
-# 8. Fumble?
-# 9. Duration
+# 6. Fair catch?
+# 7. Muffed?
+# 8. Return yards
+# 9. Fumble?
+# 10. Duration
 ###
 
 # 1. Blocked?
@@ -383,10 +383,187 @@ plt.ylim(0, 0.13)
 plt.savefig('./figures/p_punt_out_of_bounds.png')
 plt.clf()
 
-# 6. Fair catch? Muffed?
+# 6. Fair catch?
+def fair_catch_count(s):
+    return (s == 1).sum()
+df["punt_landing_group"] = pd.cut(df["punt_landing"], bins=10)
+grouped_landing = df.groupby("punt_landing_group")
+grouped_landing_averages = grouped_landing["punt_fair_catch"].agg(["count", fair_catch_count])
+grouped_landing_averages["p_fair_catch"] = grouped_landing_averages["fair_catch_count"] / grouped_landing_averages["count"]
+print(grouped_landing_averages)
+print()
 
-# 7. Return yards
+landing_group_midpoints = [[(name.left + name.right)/2] for name in grouped_landing_averages.index]
+punt_fair_catch_model = LinearRegression()
+punt_fair_catch_model.fit(
+    landing_group_midpoints,
+    grouped_landing_averages["p_fair_catch"]
+)
+print("Punt fair catch probability model")
+print(f"Coef: {punt_fair_catch_model.coef_}")
+print(f"Intr: {punt_fair_catch_model.intercept_}")
+print()
 
-# 8. Fumble?
+punt_fair_catch_pred = punt_fair_catch_model.predict(zero_to_hundred)
+plt.scatter(landing_group_midpoints, grouped_landing_averages["p_fair_catch"], color='g')
+plt.plot(zero_to_hundred, punt_fair_catch_pred, color='b')
+plt.title("Probability of a fair catch by punt landing")
+plt.xlabel("Punt landing yard line")
+plt.ylabel("Probability of a fair catch")
+plt.savefig('./figures/p_punt_fair_catch.png')
+plt.clf()
 
-# 9. Duration
+# 7. Muffed?
+def muffed_punt_count(s):
+    return (s == 1).sum()
+df["punt_muffed"] = 0
+df.loc[(df["fumble"] == 1) & (df["return_yards"] == 0), "punt_muffed"] = 1
+df["returning_group"] = pd.cut(df["norm_diff_returning"], bins=10)
+grouped_returning = df.groupby("returning_group")
+grouped_returning_averages = grouped_returning["punt_muffed"].agg(["count", muffed_punt_count])
+grouped_returning_averages["p_muffed_punt"] = grouped_returning_averages["muffed_punt_count"] / grouped_returning_averages["count"]
+print(grouped_returning_averages)
+print()
+
+returning_group_midpoints = [[(name.left + name.right)/2] for name in grouped_returning_averages.index]
+punt_muffed_model = LinearRegression()
+punt_muffed_model.fit(
+    returning_group_midpoints,
+    grouped_returning_averages["p_muffed_punt"]
+)
+print("Punt fair catch probability model")
+print(f"Coef: {punt_muffed_model.coef_}")
+print(f"Intr: {punt_muffed_model.intercept_}")
+print()
+
+punt_muffed_pred = punt_muffed_model.predict(zero_to_one)
+plt.scatter(returning_group_midpoints, grouped_returning_averages["p_muffed_punt"], color='g')
+plt.plot(zero_to_one, punt_muffed_pred, color='b')
+plt.title("Probability of a muffed punt by returning skill differential")
+plt.xlabel("Punt returning skill differential")
+plt.ylabel("Probability of a muffed punt")
+plt.savefig('./figures/p_muffed_punt.png')
+plt.clf()
+
+# 8. Return yards
+df["flipped_punt_landing"] = 100 - df["punt_landing"]
+df["relative_return_yards"] = df["return_yards"] / df["flipped_punt_landing"]
+punt_returns = df[(df["punt_downed"] == 0) & (df["punt_fair_catch"] == 0) & (df["punt_muffed"] == 0)]
+grouped_returning_on_returns = punt_returns.groupby("returning_group")
+grouped_returning_return_averages = grouped_returning_on_returns["relative_return_yards"].agg(["mean", "std", "skew"])
+print(grouped_returning_return_averages)
+print()
+
+returning_return_group_midpoints = [[(name.left + name.right)/2] for name in grouped_returning_return_averages.index]
+mean_return_yards_model = LinearRegression()
+pf = PolynomialFeatures(degree=2)
+transformed_return_midpoints = pf.fit_transform(returning_return_group_midpoints)
+pf.fit(
+    transformed_return_midpoints,
+    grouped_returning_return_averages["mean"]
+)
+mean_return_yards_model.fit(
+    transformed_return_midpoints,
+    grouped_returning_return_averages["mean"]
+)
+mean_punt_return_pred = mean_return_yards_model.predict(pf.fit_transform(zero_to_one))
+print("Mean punt return yards model")
+print(f"Coef: {mean_return_yards_model.coef_}")
+print(f"Intr: {mean_return_yards_model.intercept_}")
+print()
+
+std_return_yards_model = LinearRegression()
+pf = PolynomialFeatures(degree=2)
+transformed_return_midpoints = pf.fit_transform(returning_return_group_midpoints)
+pf.fit(
+    transformed_return_midpoints,
+    grouped_returning_return_averages["std"]
+)
+std_return_yards_model.fit(
+    transformed_return_midpoints,
+    grouped_returning_return_averages["std"]
+)
+std_punt_return_pred = std_return_yards_model.predict(pf.fit_transform(zero_to_one))
+print("Std punt return yards model")
+print(f"Coef: {std_return_yards_model.coef_}")
+print(f"Intr: {std_return_yards_model.intercept_}")
+print()
+
+skew_return_yards_model = LinearRegression()
+pf = PolynomialFeatures(degree=2)
+transformed_return_midpoints = pf.fit_transform(returning_return_group_midpoints)
+pf.fit(
+    transformed_return_midpoints,
+    grouped_returning_return_averages["skew"]
+)
+skew_return_yards_model.fit(
+    transformed_return_midpoints,
+    grouped_returning_return_averages["skew"]
+)
+skew_punt_return_pred = skew_return_yards_model.predict(pf.fit_transform(zero_to_one))
+print("Skew punt return yards model")
+print(f"Coef: {skew_return_yards_model.coef_}")
+print(f"Intr: {skew_return_yards_model.intercept_}")
+print()
+
+plt.scatter(returning_return_group_midpoints, grouped_returning_return_averages["mean"], color='g')
+plt.scatter(returning_return_group_midpoints, grouped_returning_return_averages["std"], color='r')
+plt.scatter(returning_return_group_midpoints, grouped_returning_return_averages["skew"], color='y')
+plt.plot(zero_to_one, mean_punt_return_pred, color='b')
+plt.plot(zero_to_one, std_punt_return_pred, color='b')
+plt.plot(zero_to_one, skew_punt_return_pred, color='b')
+plt.title("Return yards relative to punt landing by returning skill differential")
+plt.xlabel("Punt returning skill differential")
+plt.ylabel("Return yards relative to punt landing")
+plt.savefig('./figures/punt_return_yards.png')
+plt.clf()
+
+# 9. Fumble?
+def fumble_count(s):
+    return (s == 1).sum()
+grouped_returning_fumble_averages = grouped_returning_on_returns["fumble"].agg(["count", fumble_count])
+grouped_returning_fumble_averages["p_fumble"] = grouped_returning_fumble_averages["fumble_count"] / grouped_returning_fumble_averages["count"]
+print(grouped_returning_fumble_averages)
+print()
+
+punt_return_fumble_model = LinearRegression()
+punt_return_fumble_model.fit(
+    returning_return_group_midpoints,
+    grouped_returning_fumble_averages["p_fumble"]
+)
+punt_return_fumble_pred = punt_return_fumble_model.predict(zero_to_one)
+print("Punt return fumble probability model")
+print(f"Coef: {punt_return_fumble_model.coef_}")
+print(f"Intr: {punt_return_fumble_model.intercept_}")
+print()
+
+plt.scatter(returning_return_group_midpoints, grouped_returning_fumble_averages["p_fumble"], color='g')
+plt.plot(zero_to_one, punt_return_fumble_pred, color='b')
+plt.title("Punt return fumble probability")
+plt.xlabel("Punt returning skill differential")
+plt.ylabel("Probability of a fumble")
+plt.savefig('./figures/p_punt_return_fumble.png')
+plt.clf()
+
+# 10. Duration
+punt_returns["combined_yards"] = punt_returns["kick_distance"] + punt_returns["return_yards"]
+punt_returns_minus_outliers = punt_returns[punt_returns["play_duration"] < 15]
+punt_return_duration_model = LinearRegression()
+punt_return_duration_model.fit(
+    punt_returns_minus_outliers[["combined_yards"]],
+    punt_returns_minus_outliers[["play_duration"]]
+)
+zero_to_one_seventy_five = pd.DataFrame(np.linspace(0, 175))
+punt_return_duration_pred = punt_return_duration_model.predict(zero_to_one_seventy_five)
+print("Punt return fumble probability model")
+print(f"Coef: {punt_return_duration_model.coef_}")
+print(f"Intr: {punt_return_duration_model.intercept_}")
+print()
+
+plt.scatter(punt_returns["combined_yards"], punt_returns["play_duration"], color='g')
+plt.plot(zero_to_one_seventy_five, punt_return_duration_pred, color='b')
+plt.title("Punt return duration by combined punt and return yards")
+plt.xlabel("Combined punt and return yards")
+plt.ylabel("Punt return play duration")
+plt.savefig('./figures/punt_return_duration.png')
+plt.clf()

@@ -7,7 +7,8 @@ class DefensiveSkill:
             coverage: float=0.5,
             turnovers: float=0.5,
             penalties: float=0.5,
-            field_goal_defense: float=0.5
+            field_goal_defense: float=0.5,
+            kick_returning: float=0.5
         ) -> tuple[bool, str]:
         """
         Validates the DefensiveSkill properties
@@ -20,6 +21,7 @@ class DefensiveSkill:
             turnovers (float): How likely the defense is to force a turnover
             penalties (float): How unlikely the defense is to commit a penalty
             field_goal_defense (float): How good the defense is at defending field goals
+            kick_returning (float): How good the defense is at returning kickoffs and punts
         
         Returns:
             bool: Whether the properties are valid
@@ -39,6 +41,8 @@ class DefensiveSkill:
             return False, f"Penalties out of bounds (0 - 1): {penalties}"
         if field_goal_defense > 1.0 or field_goal_defense < 0:
             return False, f"Field goal defense out of bounds (0 - 1): {field_goal_defense}"
+        if kick_returning > 1.0 or kick_returning < 0:
+            return False, f"Kick returning out of bounds (0 - 1): {kick_returning}"
         return True, ""
     
     def __init__(
@@ -49,7 +53,8 @@ class DefensiveSkill:
             coverage: float=0.5,
             turnovers: float=0.5,
             penalties: float=0.5,
-            field_goal_defense: float=0.5
+            field_goal_defense: float=0.5,
+            kick_returning: float=0.5
         ) -> "DefensiveSkill":
         """
         Constructor for the DefensiveSkill class
@@ -62,6 +67,7 @@ class DefensiveSkill:
             turnovers (float): How likely the defense is to force a turnover
             penalties (float): How unlikely the defense is to commit a penalty
             field_goal_defense (float): How good the defense is at defending field goals
+            kick_returning (float): How good the defense is at returning kickoffs and punts
         
         Returns:
             DefensiveSkill: The instantiated DefensiveSkill object
@@ -74,7 +80,8 @@ class DefensiveSkill:
             coverage=coverage,
             turnovers=turnovers,
             penalties=penalties,
-            field_goal_defense=field_goal_defense
+            field_goal_defense=field_goal_defense,
+            kick_returning=kick_returning
         )
         if not valid:
             raise ValueError(err)
@@ -87,3 +94,4 @@ class DefensiveSkill:
         self.turnovers = turnovers
         self.penalties = penalties
         self.field_goal_defense = field_goal_defense
+        self.kick_returning = kick_returning

@@ -31,7 +31,6 @@ class RushResult:
         new_context.update_yard_line(self.yards_gained)
         if self.fumble:
             new_context.home_possession = not new_context.home_possession
-            new_context.yard_line = 100 - new_context.yard_line
         return new_context
 
     def __str__(self) -> str:

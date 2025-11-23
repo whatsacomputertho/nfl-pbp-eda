@@ -8,7 +8,9 @@ class OffensiveSkill:
             scrambling: float=0.5,
             turnovers: float=0.5,
             penalties: float=0.5,
-            field_goals: float=0.5
+            field_goals: float=0.5,
+            punting: float=0.5,
+            kick_return_defense: float=0.5
         ) -> tuple[bool, str]:
         """
         Validates the OffensiveSkill properties
@@ -22,6 +24,8 @@ class OffensiveSkill:
             turnovers (float): How unlikely the offense is to commit a turnover
             penalties (float): How unlikely the offense is to commit a penalty
             field_goals (float): How good the offense is at kicking field goals
+            punting (float): How good the offense is at punts
+            kick_return_defense (float): How good the offense is at defending punt and kick returns
         
         Returns:
             bool: Whether the properties are valid
@@ -43,6 +47,10 @@ class OffensiveSkill:
             return False, f"Penalties out of bounds (0 - 1): {penalties}"
         if field_goals > 1.0 or field_goals < 0:
             return False, f"Field goals out of bounds (0 - 1): {field_goals}"
+        if punting > 1.0 or punting < 0:
+            return False, f"Punting out of bounds (0 - 1): {punting}"
+        if kick_return_defense > 1.0 or kick_return_defense < 0:
+            return False, f"Kick return defense out of bounds (0 - 1): {kick_return_defense}"
         return True, ""
     
     def __init__(
@@ -54,7 +62,9 @@ class OffensiveSkill:
             scrambling: float=0.5,
             turnovers: float=0.5,
             penalties: float=0.5,
-            field_goals: float=0.5
+            field_goals: float=0.5,
+            punting: float=0.5,
+            kick_return_defense: float=0.5
         ) -> "OffensiveSkill":
         """
         Constructor for the OffensiveSkill class
@@ -68,6 +78,8 @@ class OffensiveSkill:
             turnovers (float): How unlikely the offense is to commit a turnover
             penalties (float): How unlikely the offense is to commit a penalty
             field_goals (float): How good the offense is at kicking field goals
+            punting (float): How good the offense is at punts
+            kick_return_defense (float): How good the offense is at defending punt and kick returns
         
         Returns:
             OffensiveSkill: The instantiated OffensiveSkill object
@@ -81,7 +93,9 @@ class OffensiveSkill:
             scrambling=scrambling,
             turnovers=turnovers,
             penalties=penalties,
-            field_goals=field_goals
+            field_goals=field_goals,
+            punting=punting,
+            kick_return_defense=kick_return_defense
         )
         if not valid:
             raise ValueError(err)
@@ -95,3 +109,5 @@ class OffensiveSkill:
         self.turnovers = turnovers
         self.penalties = penalties
         self.field_goals = field_goals
+        self.punting = punting
+        self.kick_return_defense = kick_return_defense
