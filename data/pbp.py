@@ -754,6 +754,104 @@ def load_clean_nfl_pbp_punt_data(
         ]
     ]
 
+def load_clean_nfl_pbp_kickoff_data():
+    """
+    Loads historical NFL play-by-play data and cleans it for training the
+    kickoff result model
+
+    Args:
+        years (list[int]): The years of kickoff data to load
+    
+    Returns:
+        pd.DataFrame: The loaded & cleaned historical NFL kickoff data
+    """
+    # Load NFL play-by-play data
+    df = nfl.import_pbp_data(NFL_PBP_YEARS, cache=False, alt_path=None)
+    
+    # Derive play duration and drop outliers
+    df['game_seconds_next'] = df.groupby('game_id')['game_seconds_remaining'].shift(-1)
+    df['play_duration'] = df['game_seconds_remaining'] - df['game_seconds_next']
+    df = df.query('play_duration < 69.0')
+    df = df.query('play_duration >= 0')
+    kickoff_plays = df.query("kickoff_attempt == 1")
+
+    # Kickoff and kick return skill groups
+    season_posteam_groups = kickoff_plays.groupby(["season", "posteam"])
+    season_defteam_groups = kickoff_plays.groupby(["season", "defteam"])
+    for groups, group in season_posteam_groups:
+        # Derive returning skill
+        total_return_attempts = len(group)
+        total_return_yards = group["return_yards"].sum()
+        returning = total_return_yards / total_return_attempts
+        kickoff_plays.loc[
+            (kickoff_plays['season'] == groups[0]) & (kickoff_plays['posteam'] == groups[1]),
+            "returning"
+        ] = returning
+    for groups, group in season_defteam_groups:
+        # Derive kicking skill
+        total_kickoff_attempts = len(group)
+        total_touchbacks = len(
+            group.query('touchback == 1')
+        )
+        kicking = total_touchbacks / total_kickoff_attempts
+        kickoff_plays.loc[
+            (kickoff_plays['season'] == groups[0]) & (kickoff_plays['defteam'] == groups[1]),
+            "kicking"
+        ] = kicking
+
+        # Derive return defense skill
+        total_return_yards_against = group["return_yards"].sum()
+        return_defense = total_return_yards_against / total_kickoff_attempts
+        kickoff_plays.loc[
+            (kickoff_plays['season'] == groups[0]) & (kickoff_plays['defteam'] == groups[1]),
+            "return_defense"
+        ] = return_defense
+
+    # Normalize kicking, returning, return defense
+    min_kicking = kickoff_plays["kicking"].min()
+    max_kicking = kickoff_plays["kicking"].max()
+    kickoff_plays["norm_kicking"] = (kickoff_plays["kicking"] - min_kicking) / \
+        (max_kicking - min_kicking)
+    min_returning = kickoff_plays["returning"].min()
+    max_returning = kickoff_plays["returning"].max()
+    kickoff_plays["norm_returning"] = (kickoff_plays["returning"] - min_returning) / \
+        (max_returning - min_returning)
+    min_return_defense = kickoff_plays["return_defense"].min()
+    max_return_defense = kickoff_plays["return_defense"].max()
+    kickoff_plays["norm_return_defense"] = 1 - (
+        (kickoff_plays["return_defense"] - min_return_defense) / \
+        (max_return_defense - min_return_defense)
+    )
+
+    # Calculate norm diff returning
+    kickoff_plays["diff_returning"] = kickoff_plays["norm_returning"] - kickoff_plays["norm_return_defense"]
+    min_diff_returning = kickoff_plays["diff_returning"].min()
+    max_diff_returning = kickoff_plays["diff_returning"].max()
+    kickoff_plays["norm_diff_returning"] = (kickoff_plays["diff_returning"] - min_diff_returning) / \
+        (max_diff_returning - min_diff_returning)
+    return kickoff_plays[
+        [
+            # Skill levels
+            "norm_kicking",
+            "norm_diff_returning",
+
+            # Kickoff result columns
+            "kick_distance",
+            "kickoff_inside_twenty",
+            "kickoff_in_endzone",
+            "kickoff_out_of_bounds",
+            "kickoff_downed",
+            "kickoff_fair_catch",
+            "return_yards",
+            "fumble",
+            "touchback",
+            "play_duration",
+
+            # Debug
+            "desc"
+        ]
+    ]
+
 def load_clean_nfl_pbp_playresult_data(
         years: list[int]=NFL_PBP_YEARS
     ):
