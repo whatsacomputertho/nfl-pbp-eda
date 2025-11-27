@@ -17,7 +17,7 @@ class PuntResult:
             touchdown: bool=False
         ):
         """
-        Constructor for the RushResult class
+        Constructor for the PuntResult class
         """
         self.blocked = blocked
         self.fumble_return_yards = fumble_return_yards

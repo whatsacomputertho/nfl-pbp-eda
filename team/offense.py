@@ -10,6 +10,7 @@ class OffensiveSkill:
             penalties: float=0.5,
             field_goals: float=0.5,
             punting: float=0.5,
+            kickoffs: float=0.5,
             kick_return_defense: float=0.5
         ) -> tuple[bool, str]:
         """
@@ -25,6 +26,7 @@ class OffensiveSkill:
             penalties (float): How unlikely the offense is to commit a penalty
             field_goals (float): How good the offense is at kicking field goals
             punting (float): How good the offense is at punts
+            kickoffs (float): How good the offense is at kickoffs
             kick_return_defense (float): How good the offense is at defending punt and kick returns
         
         Returns:
@@ -49,6 +51,8 @@ class OffensiveSkill:
             return False, f"Field goals out of bounds (0 - 1): {field_goals}"
         if punting > 1.0 or punting < 0:
             return False, f"Punting out of bounds (0 - 1): {punting}"
+        if kickoffs > 1.0 or kickoffs < 0:
+            return False, f"Kickoffs out of bounds (0 - 1): {kickoffs}"
         if kick_return_defense > 1.0 or kick_return_defense < 0:
             return False, f"Kick return defense out of bounds (0 - 1): {kick_return_defense}"
         return True, ""
@@ -64,6 +68,7 @@ class OffensiveSkill:
             penalties: float=0.5,
             field_goals: float=0.5,
             punting: float=0.5,
+            kickoffs: float=0.5,
             kick_return_defense: float=0.5
         ) -> "OffensiveSkill":
         """
@@ -78,6 +83,7 @@ class OffensiveSkill:
             turnovers (float): How unlikely the offense is to commit a turnover
             penalties (float): How unlikely the offense is to commit a penalty
             field_goals (float): How good the offense is at kicking field goals
+            kickoffs (float): How good the offense is at kickoffs
             punting (float): How good the offense is at punts
             kick_return_defense (float): How good the offense is at defending punt and kick returns
         
@@ -95,6 +101,7 @@ class OffensiveSkill:
             penalties=penalties,
             field_goals=field_goals,
             punting=punting,
+            kickoffs=kickoffs,
             kick_return_defense=kick_return_defense
         )
         if not valid:
@@ -110,4 +117,5 @@ class OffensiveSkill:
         self.penalties = penalties
         self.field_goals = field_goals
         self.punting = punting
+        self.kickoffs = kickoffs
         self.kick_return_defense = kick_return_defense
