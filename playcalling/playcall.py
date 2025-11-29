@@ -26,6 +26,8 @@ class PlayCall(Enum):
         Returns:
             PlayCall: The initialized PlayCall enum instance
         """
+        if playcall.upper() == "RUN":
+            return PlayCall["RUN_MIDDLE"]
         return PlayCall[playcall.upper()]
 
     def to_one_hot(self) -> dict[str, Any]:

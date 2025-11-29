@@ -132,6 +132,45 @@ class PlayContext:
         self.off_timeouts = off_timeouts
         self.def_timeouts = def_timeouts
 
+    def result_prefix(self) -> str:
+        """
+        Format a PlayContext as a concise prefix for a play result string
+
+        Returns:
+            str: The PlayContext as a concise string prefix
+        """
+        # Format the clock
+        clock = self.half_seconds if self.half_seconds <= 900 \
+                else self.half_seconds - 900
+        clock_mins = clock // 60
+        clock_secs = clock - (clock_mins * 60)
+        clock_secs_str = f"0{clock_secs}" if clock_secs < 10 \
+                else str(clock_secs)
+        clock_str = f"{clock_mins}:{clock_secs_str}"
+        
+        # Format the quarter
+        quarter_str = f"{self.quarter}Q"
+
+        # Format the down & distance
+        down_suf = "th"
+        if self.down == 1:
+            down_suf = "st"
+        elif self.down == 2:
+            down_suf = "nd"
+        elif self.down == 3:
+            down_suf = "rd"
+        down_dist_str = f"{self.down}{down_suf} & {self.distance}"
+        if self.goal_to_go:
+            down_dist_str = f"{self.down}{down_suf} & goal"
+
+        # Format the yard line
+        yard = self.yard_line if self.yard_line < 50 \
+            else 100 - self.yard_line
+        side_of_field = "OWN" if self.yard_line < 50 else "OPP"
+        yard_str = f"{side_of_field} {yard}"
+
+        return f"[{clock_str} {quarter_str}] {down_dist_str} {yard_str}"
+
     def __str__(self) -> str:
         """
         Format a PlayContext as a human-readable string
@@ -212,6 +251,8 @@ class GameContext:
             home_possession: bool=True,
             home_timeouts: int=3,
             away_timeouts: int=3,
+            next_play_extra_point: bool=False,
+            next_play_kickoff: bool=False,
             game_over: bool=False
         ) -> "GameContext":
         """
@@ -232,6 +273,8 @@ class GameContext:
             home_possession (bool): Whether the home team has possession
             home_timeouts (int): number of timeouts remaining for the home team
             away_timeouts (int): Number of timeouts remaining for the away team
+            next_play_extra_point (bool): Whether the next play will be an extra point
+            next_play_kickoff (bool): Whether the next play will be a kickoff
             game_over (bool): Whether the game is complete
         
         Returns:
@@ -251,6 +294,8 @@ class GameContext:
         self.home_possession = home_possession
         self.home_timeouts = home_timeouts
         self.away_timeouts = away_timeouts
+        self.next_play_extra_point = next_play_extra_point
+        self.next_play_kickoff = next_play_kickoff
         self.game_over = game_over
 
     def into_play_context(self) -> PlayContext:
@@ -302,6 +347,47 @@ class GameContext:
             def_timeouts=def_timeouts
         )
 
+    def result_prefix(self) -> str:
+        """
+        Format a GameCnotext as a concise prefix for a play result string
+
+        Returns:
+            str: The GameCnotext as a concise string prefix
+        """
+        play_context = self.into_play_context()
+        if self.home_possession:
+            home_team_str = f"*{self.home_team}"
+            away_team_str = self.away_team
+        else:
+            away_team_str = f"*{self.away_team}"
+            home_team_str = self.home_team
+        return f"{play_context.result_prefix()} ({home_team_str} {self.home_score} - {away_team_str} {self.away_score})"
+
+    def update(self, play_duration: int, yards_gained: int):
+        """
+        Updates the clock and yard line
+
+        Args:
+            play_duration (int): How long the play took in seconds
+            yards_gained (int): Yards gained on the play
+        """
+        self.update_clock(play_duration)
+        self.update_yard_line(yards_gained)
+        if self.half_seconds <= 0:
+            if self.quarter == 2:
+                if self.home_opening_kickoff:
+                    self.home_possession = True
+                    if self.home_positive_direction:
+                        self.yard_line = 35
+                    else:
+                        self.yard_line = 65
+                    self.next_play_kickoff = True
+                    self.quarter = 3
+                    self.half_seconds = 1800
+            else:
+                if self.home_score != self.away_score:
+                    self.game_over = True
+
     def update_clock(self, play_duration: int):
         """
         Updates the clock given the duration of the play. Also updates the
@@ -351,80 +437,110 @@ class GameContext:
         # Update the yard line, check for a first down, touchdown, or safety
         yard_line = self.yard_line
         distance = self.distance
+        first_down = False
         if self.home_positive_direction:
             distance -= yards_gained
             if self.home_possession:
                 yard_line += yards_gained
-                if yard_line >= (self.yard_line + self.distance):
-                    # First down
-                    self.down = 1
-                    self.distance = 10
-                    self.yard_line = yard_line
-                    return
+                if not (self.yard_line + self.distance) >= 100:
+                    if yard_line >= (self.yard_line + self.distance):
+                        # First down
+                        self.down = 1
+                        self.distance = 10
+                        self.yard_line = yard_line
+                        first_down = True
                 if yard_line > 100:
                     # Touchdown
                     self.down = 0
                     self.home_score += 6
+                    self.yard_line = 98
+                    self.next_play_extra_point = True
+                    return
                 elif yard_line < 0:
                     # Safety
                     self.down = 0
                     self.away_score += 2
+                    self.yard_line = 35
+                    self.next_play_kickoff = True
+                    return
             else:
                 yard_line -= yards_gained
-                if yard_line <= (self.yard_line - self.distance):
-                    # First down
-                    self.down = 1
-                    self.distance = 10
-                    self.yard_line = yard_line
-                    return
+                if not (self.yard_line - self.distance) <= 0:
+                    if yard_line <= (self.yard_line - self.distance):
+                        # First down
+                        self.down = 1
+                        self.distance = 10
+                        self.yard_line = yard_line
+                        first_down = True
                 if yard_line < 0:
                     # Touchdown
                     self.down = 0
                     self.away_score += 6
+                    self.yard_line = 2
+                    self.next_play_extra_point = True
+                    return
                 elif yard_line > 100:
                     # Safety
                     self.down = 0
                     self.home_score += 2
+                    self.yard_line = 65
+                    self.next_play_kickoff = True
+                    return
         else:
             distance -= yards_gained
             if self.home_possession:
                 yard_line -= yards_gained
-                if yard_line <= (self.yard_line - self.distance):
-                    # First down
-                    self.down = 1
-                    self.distance = 10
-                    self.yard_line = yard_line
-                    return
+                if not (self.yard_line - self.distance) <= 0:
+                    if yard_line <= (self.yard_line - self.distance):
+                        # First down
+                        self.down = 1
+                        self.distance = 10
+                        self.yard_line = yard_line
+                        first_down = True
                 if yard_line < 0:
                     # Touchdown
                     self.down = 0
                     self.home_score += 6
+                    self.yard_line = 2
+                    self.next_play_extra_point = True
+                    return
                 elif yard_line > 100:
                     # Safety
                     self.down = 0
                     self.away_score += 2
+                    self.yard_line = 65
+                    self.next_play_kickoff = True
+                    return
             else:
                 yard_line += yards_gained
-                if yard_line >= (self.yard_line + self.distance):
-                    # First down
-                    self.down = 1
-                    self.distance = 10
-                    self.yard_line = yard_line
-                    return
+                if not (self.yard_line + self.distance) >= 100:
+                    if yard_line >= (self.yard_line + self.distance):
+                        # First down
+                        self.down = 1
+                        self.distance = 10
+                        self.yard_line = yard_line
+                        first_down = True
                 if yard_line > 100:
                     # Touchdown
                     self.down = 0
                     self.away_score += 6
+                    self.yard_line = 98
+                    self.next_play_extra_point = True
+                    return
                 elif yard_line < 0:
                     # Safety
                     self.down = 0
                     self.home_score += 2
-        
+                    self.yard_line = 35
+                    self.next_play_kickoff = True
+                    return
+
         # Update the yard line, down and distance
-        self.yard_line = yard_line
-        self.distance = distance
-        self.down += 1
-        if self.down > 4:
-            # Turnover on downs
-            self.down = 1
-            self.home_possession = not self.home_possession
+        if not first_down:
+            self.yard_line = yard_line
+            self.distance = distance
+            self.down += 1
+            if self.down > 4:
+                # Turnover on downs
+                self.down = 1
+                self.home_possession = not self.home_possession

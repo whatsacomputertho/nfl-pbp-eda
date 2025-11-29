@@ -367,7 +367,7 @@ class PassResultModel:
         pass_dist = int(
             np.random.normal(
                 loc=mean_pass_dist,
-                scale=std_pass_dist
+                scale=np.abs(std_pass_dist)
             )
         )
         return pass_dist

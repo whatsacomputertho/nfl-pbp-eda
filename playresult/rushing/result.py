@@ -27,8 +27,7 @@ class RushResult:
         this play result
         """
         new_context = copy.deepcopy(context)
-        new_context.update_clock(self.play_duration)
-        new_context.update_yard_line(self.yards_gained)
+        new_context.update(self.play_duration, self.yards_gained)
         if self.fumble:
             new_context.home_possession = not new_context.home_possession
         return new_context
@@ -43,7 +42,7 @@ class RushResult:
         res = f"({self.play_duration}s)"
         if self.scramble:
             res += " QB under pressure, scrambles."
-        res = f" Rush for {self.yards_gained} yards."
+        res += f" Rush for {self.yards_gained} yards."
         if self.fumble:
             res += " FUMBLE recovered by the defense."
             if self.return_yards != 0:
