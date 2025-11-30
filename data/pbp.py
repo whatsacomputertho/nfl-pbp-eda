@@ -33,6 +33,35 @@ def load_clean_nfl_pbp_playcall_data(
     # Load NFL play-by-play data
     df = nfl.import_pbp_data(years, cache=False, alt_path=None)
 
+    season_posteam_groups = df.groupby(["season", "posteam"])
+    for groups, group in season_posteam_groups:
+        # Run playcall percent
+        run_percent = group["play_type"].value_counts(normalize=True)["run"]
+        df.loc[
+            (df['season'] == groups[0]) & (df['posteam'] == groups[1]),
+            "run_percent"
+        ] = run_percent
+
+        # Go for it on fourth percent
+        fourth_downs = group[group["down"] == 4]
+        total_fourth_downs = len(fourth_downs)
+        go_for_it_count = len(fourth_downs[(fourth_downs["play_type"] == "run") | (fourth_downs["play_type"] == "pass")])
+        p_go_for_it = go_for_it_count / total_fourth_downs
+        df.loc[
+            (df['season'] == groups[0]) & (df['posteam'] == groups[1]),
+            "go_for_it_percent"
+        ] = p_go_for_it
+
+    # Normalize run percent
+    min_run_percent = df["run_percent"].min()
+    max_run_percent = df["run_percent"].max()
+    df["norm_run_percent"] = (df["run_percent"] - min_run_percent) / \
+        (max_run_percent - min_run_percent)
+    min_go_for_it_percent = df["go_for_it_percent"].min()
+    max_go_for_it_percent = df["go_for_it_percent"].max()
+    df["norm_go_for_it_percent"] = (df["go_for_it_percent"] - min_go_for_it_percent) / \
+        (max_go_for_it_percent - min_go_for_it_percent)
+
     # Clean the NFL play-by-play data
     df = df[
         [
@@ -45,7 +74,12 @@ def load_clean_nfl_pbp_playcall_data(
             "defteam_score",
             "defteam_timeouts_remaining",
             "posteam_timeouts_remaining",
+            "no_huddle",
             "play_type",
+            "run_percent",
+            "norm_run_percent",
+            "go_for_it_percent",
+            "norm_go_for_it_percent",
             "posteam",
             "goal_to_go",
             "timeout",
@@ -71,37 +105,18 @@ def load_clean_nfl_pbp_playcall_data(
     df.loc[df["goal_to_go"] == 1, "goal_to_go"] = True
     df.loc[df["goal_to_go"] == 0, "goal_to_go"] = False
     # TODO: Eventually re-introduce
-    #df.loc[df["no_huddle"] == 1.0, "no_huddle"] = True
-    #df.loc[df["no_huddle"] == 0.0, "no_huddle"] = False
+    df.loc[df["no_huddle"] == 1.0, "no_huddle"] = True
+    df.loc[df["no_huddle"] == 0.0, "no_huddle"] = False
     df.loc[df["timeout"] == 1.0, "timeout"] = True
     df.loc[df["timeout"] == 0.0, "timeout"] = False
 
     # Combine pass length, run direction, and timeout into play type column
-    df.loc[(df["play_type"] == "pass") & (df["pass_length"] == "short"), "play_type"] = "short_pass"
-    df.loc[(df["play_type"] == "pass") & (df["pass_length"] == "deep"), "play_type"] = "deep_pass"
-    df.loc[(df["play_type"] == "run") & (df["run_location"] == "left"), "play_type"] = "run_left"
-    df.loc[(df["play_type"] == "run") & (df["run_location"] == "middle"), "play_type"] = "run_middle"
-    df.loc[(df["play_type"] == "run") & (df["run_location"] == "right"), "play_type"] = "run_right"
-    df.loc[(df["timeout"] == True) & (df["timeout_team"] == df["posteam"]), "play_type"] = "offense_timeout"
-    df.loc[(df["timeout"] == True) & ~(df["timeout_team"] == df["posteam"]), "play_type"] = "defense_timeout"
     df = df[~(df["play_type"] == "no_play")]
     df = df.drop("run_location", axis=1)
     df = df.drop("pass_length", axis=1)
     df = df.drop("timeout", axis=1)
     df = df.drop("timeout_team", axis=1)
     df = df.drop("posteam", axis=1)
-
-    # Sort remaining passes into short and deep using the observed proportion
-    counts = df["play_type"].value_counts()
-    num_passes = counts["pass"]
-    num_short = counts["short_pass"]
-    num_deep = counts["deep_pass"]
-    proportion = num_short / (num_short + num_deep)
-    df.loc[df["play_type"] == "pass", "play_type"] = np.where(
-        np.random.rand(num_passes) < proportion,
-        'short_pass',
-        'deep_pass'
-    )
 
     # Return the cleaned dataframe
     return df

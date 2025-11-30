@@ -11,6 +11,7 @@ from playresult.rushing.model import RushResultModel
 from playresult.rushing.result import RushResult
 from playresult.punt.model import PuntResultModel
 from playresult.punt.result import PuntResult
+from team.coach import CoachSkill
 from team.offense import OffensiveSkill
 from team.defense import DefensiveSkill
 
@@ -19,7 +20,7 @@ kickoff_model = KickoffResultModel()
 rushing_model = RushResultModel()
 passing_model = PassResultModel()
 punt_model = PuntResultModel()
-playcall_model = PlayCallingModel(from_file=True)
+playcall_model = PlayCallingModel()
 context = GameContext(
     home_team="CAR",
     away_team="NYM"
@@ -30,13 +31,13 @@ playcall = PlayCall.KICKOFF
 
 while not context.game_over:
     play_context = context.into_play_context()
-    if playcall in [PlayCall.RUN_LEFT, PlayCall.RUN_MIDDLE, PlayCall.RUN_RIGHT]:
+    if playcall == PlayCall.RUN:
         result = rushing_model.sim(
             context=play_context,
             offense=OffensiveSkill(),
             defense=DefensiveSkill()
         )
-    elif playcall in [PlayCall.SHORT_PASS, PlayCall.DEEP_PASS]:
+    elif playcall == PlayCall.PASS:
         result = passing_model.sim(
             context=play_context,
             offense=OffensiveSkill(),
@@ -74,4 +75,7 @@ while not context.game_over:
     elif context.next_play_extra_point:
         playcall = PlayCall.EXTRA_POINT
     else:
-        playcall = playcall_model.play(context.into_play_context())
+        playcall = playcall_model.sim(
+            context.into_play_context(),
+            CoachSkill()
+        )
