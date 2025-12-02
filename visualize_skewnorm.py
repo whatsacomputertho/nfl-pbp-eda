@@ -2,11 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import skewnorm
 
-mean = 0.1
-std = 0.1
-skew = 3.0
+mean = 6
+std = 2
+skew = 0
 num_samples = 5000
-x = np.linspace(-1, 1, 500)
+x = np.linspace(-10, 40, 500)
 pdf = skewnorm.pdf(x, a=skew, loc=mean, scale=std)
 samples = skewnorm.rvs(a=skew, loc=mean, scale=std, size=num_samples)
 

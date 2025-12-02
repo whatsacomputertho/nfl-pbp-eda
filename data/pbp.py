@@ -17,6 +17,98 @@ NFL_PBP_YEARS = [
     2015
 ]
 
+def load_clean_nfl_pbp_between_play_data(
+        years: list[int]=NFL_PBP_YEARS
+    ) -> pd.DataFrame:
+    """
+    Loads historical NFL play-by-play data and cleans it for training the
+    between-play model
+
+    Args:
+        years (list[int]): The years of play-by-play data to load
+
+    Returns:
+        pd.DataFrame: The loaded & cleaned historical NFL play-by-play data
+    """
+    # Load NFL play-by-play data
+    df = nfl.import_pbp_data(years, cache=False, alt_path=None)
+
+    # Derive play duration and drop outliers
+    df['game_seconds_next'] = df.groupby('game_id')['game_seconds_remaining'].shift(-1)
+    df['play_duration'] = df['game_seconds_remaining'] - df['game_seconds_next']
+    df = df.query('play_duration < 69.0')
+    df = df.query('play_duration >= 0')
+    df['prev_play_duration'] = df['play_duration'].shift(-1)
+    df['prev_play_out_of_bounds'] = df['out_of_bounds'].shift(-1)
+    df['prev_play_incomplete_pass'] = df['incomplete_pass'].shift(-1)
+    df['prev_play_timeout'] = df['timeout'].shift(-1)
+
+    season_posteam_groups = df.groupby(["season", "posteam"])
+    for groups, group in season_posteam_groups:
+        # Average play duration group
+        total_plays = len(group)
+        total_duration = group["play_duration"].sum()
+        average_play_duration = total_duration / total_plays
+        df.loc[
+            (df['season'] == groups[0]) & (df['posteam'] == groups[1]),
+            "average_play_duration"
+        ] = average_play_duration
+
+    # Normalize average play duration
+    min_avg_play_duration = df["average_play_duration"].min()
+    max_avg_play_duration = df["average_play_duration"].max()
+    df["norm_average_play_duration"] = (df["average_play_duration"] - min_avg_play_duration) / \
+        (max_avg_play_duration - min_avg_play_duration)
+
+    # Clean the NFL play-by-play data
+    df = df[
+        [
+            "qtr",
+            "half_seconds_remaining",
+            "down",
+            "ydstogo",
+            "yardline_100",
+            "posteam_score",
+            "defteam_score",
+            "defteam_timeouts_remaining",
+            "posteam_timeouts_remaining",
+            "no_huddle",
+            "average_play_duration",
+            "norm_average_play_duration",
+            "posteam",
+            "goal_to_go",
+            "timeout",
+            "timeout_team",
+            "play_duration",
+            "prev_play_duration",
+            "prev_play_out_of_bounds",
+            "prev_play_incomplete_pass",
+            "prev_play_timeout",
+            "desc"
+        ]
+    ]
+    # Construct score differential column
+    df["score_diff"] = df["posteam_score"] - df["defteam_score"]
+    df = df.drop("posteam_score", axis=1)
+    df = df.drop("defteam_score", axis=1)
+
+    # Clean null values
+    df = df[df['half_seconds_remaining'].notna()]
+    df = df[df['defteam_timeouts_remaining'].notna()]
+    df["down"] = df["down"].fillna(0)
+    df = df[df["yardline_100"].notna()]
+
+    # Clean goal to go and no huddle columns
+    df.loc[df["goal_to_go"] == 1, "goal_to_go"] = True
+    df.loc[df["goal_to_go"] == 0, "goal_to_go"] = False
+    df.loc[df["no_huddle"] == 1.0, "no_huddle"] = True
+    df.loc[df["no_huddle"] == 0.0, "no_huddle"] = False
+    df.loc[df["timeout"] == 1.0, "timeout"] = True
+    df.loc[df["timeout"] == 0.0, "timeout"] = False
+
+    # Return the cleaned dataframe
+    return df
+
 def load_clean_nfl_pbp_playcall_data(
         years: list[int]=NFL_PBP_YEARS
     ) -> pd.DataFrame:

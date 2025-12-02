@@ -1,6 +1,7 @@
 from context.context import GameContext
 from playcalling.model import PlayCallingModel
 from playcalling.playcall import PlayCall
+from playresult.betweenplay.model import BetweenPlayModel
 from playresult.fieldgoal.model import FieldGoalResultModel
 from playresult.fieldgoal.result import FieldGoalResult
 from playresult.kickoff.model import KickoffResultModel
@@ -21,6 +22,7 @@ rushing_model = RushResultModel()
 passing_model = PassResultModel()
 punt_model = PuntResultModel()
 playcall_model = PlayCallingModel()
+between_play_model = BetweenPlayModel()
 context = GameContext(
     home_team="CAR",
     away_team="NYM"
@@ -70,6 +72,20 @@ while not context.game_over:
         )
     print(f"{context.result_prefix()} {str(result)}")
     context = result.next_context(context)
+    is_clock_running = True
+    coach_skill = CoachSkill()
+    between_play_duration, is_timeout, is_def_timeout = between_play_model.sim(
+        context.into_play_context(),
+        coach_skill.risk_taking,
+        coach_skill.up_tempo,
+        is_clock_running
+    )
+    if is_timeout:
+        if context.home_possession ^ is_def_timeout:
+            context.home_timeouts -= 1
+        else:
+            context.away_timeouts -= 1
+    context.update_clock(between_play_duration)
     if context.next_play_kickoff:
         playcall = PlayCall.KICKOFF
     elif context.next_play_extra_point:
@@ -77,5 +93,5 @@ while not context.game_over:
     else:
         playcall = playcall_model.sim(
             context.into_play_context(),
-            CoachSkill()
+            coach_skill
         )
